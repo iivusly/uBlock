@@ -41,17 +41,12 @@ if ( vAPI.canWASM === false ) {
     vAPI.canWASM = csp !== undefined && csp.indexOf("'wasm-unsafe-eval'") !== -1;
 }
 
-vAPI.supportsUserStylesheets = vAPI.webextFlavor.soup.has('user_stylesheet');
-
-const hasOwnProperty = (o, p) =>
-    Object.prototype.hasOwnProperty.call(o, p);
-
 /******************************************************************************/
 
 vAPI.app = {
     name: manifest.name.replace(/ dev\w+ build/, ''),
     version: (( ) => {
-        let version = manifest.version;
+        let version = manifest.version_name || manifest.version;
         const match = /(\d+\.\d+\.\d+)(?:\.(\d+))?/.exec(version);
         if ( match && match[2] ) {
             const v = parseInt(match[2], 10);
@@ -190,7 +185,7 @@ vAPI.browserSettings = (( ) => {
 
         set: function(details) {
             for ( const setting in details ) {
-                if ( hasOwnProperty(details, setting) === false ) { continue; }
+                if ( Object.hasOwn(details, setting) === false ) { continue; }
                 switch ( setting ) {
                 case 'prefetching': {
                     const enabled = !!details[setting];
@@ -320,7 +315,7 @@ vAPI.Tabs = class {
         try {
             result = await webext.tabs.executeScript(...args);
         }
-        catch(reason) {
+        catch {
         }
         return Array.isArray(result) ? result : [];
     }
@@ -334,7 +329,7 @@ vAPI.Tabs = class {
         try {
             tab = await webext.tabs.get(tabId);
         }
-        catch(reason) {
+        catch {
         }
         return tab instanceof Object ? tab : null;
     }
@@ -345,14 +340,9 @@ vAPI.Tabs = class {
     }
 
     async insertCSS(tabId, details) {
-        if ( vAPI.supportsUserStylesheets ) {
-            details.cssOrigin = 'user';
-        }
-        try {
-            await webext.tabs.insertCSS(...arguments);
-        }
-        catch(reason) {
-        }
+        details.cssOrigin = 'user';
+        try { await webext.tabs.insertCSS(...arguments); }
+        catch { }
     }
 
     async query(queryInfo) {
@@ -360,20 +350,15 @@ vAPI.Tabs = class {
         try {
             tabs = await webext.tabs.query(queryInfo);
         }
-        catch(reason) {
+        catch {
         }
         return Array.isArray(tabs) ? tabs : [];
     }
 
     async removeCSS(tabId, details) {
-        if ( vAPI.supportsUserStylesheets ) {
-            details.cssOrigin = 'user';
-        }
-        try {
-            await webext.tabs.removeCSS(...arguments);
-        }
-        catch(reason) {
-        }
+        details.cssOrigin = 'user';
+        try { await webext.tabs.removeCSS(...arguments); }
+        catch { }
     }
 
     // Properties of the details object:
@@ -530,7 +515,7 @@ vAPI.Tabs = class {
         try {
             tab = await webext.tabs.update(...arguments);
         }
-        catch (reason) {
+        catch {
         }
         return tab instanceof Object ? tab : null;
     }
@@ -556,7 +541,7 @@ vAPI.Tabs = class {
         try {
             await webext.tabs.remove(tabId);
         }
-        catch (reason) {
+        catch {
         }
     }
 
@@ -569,7 +554,7 @@ vAPI.Tabs = class {
                 { bypassCache: bypassCache === true }
             );
         }
-        catch (reason) {
+        catch {
         }
     }
 
@@ -668,7 +653,7 @@ if ( webext.windows instanceof Object ) {
             try {
                 win = await webext.windows.get(...arguments);
             }
-            catch (reason) {
+            catch {
             }
             return win instanceof Object ? win : null;
         },
@@ -677,7 +662,7 @@ if ( webext.windows instanceof Object ) {
             try {
                 win = await webext.windows.create(...arguments);
             }
-            catch (reason) {
+            catch {
             }
             return win instanceof Object ? win : null;
         },
@@ -686,7 +671,7 @@ if ( webext.windows instanceof Object ) {
             try {
                 win = await webext.windows.update(...arguments);
             }
-            catch (reason) {
+            catch {
             }
             return win instanceof Object ? win : null;
         },
@@ -702,7 +687,7 @@ if ( webext.browserAction instanceof Object ) {
             try {
                 await webext.browserAction.setTitle(...arguments);
             }
-            catch (reason) {
+            catch {
             }
         },
     };
@@ -712,28 +697,28 @@ if ( webext.browserAction instanceof Object ) {
             try {
                 await webext.browserAction.setBadgeTextColor(...arguments);
             }
-            catch (reason) {
+            catch {
             }
         };
         vAPI.browserAction.setBadgeBackgroundColor = async function() {
             try {
                 await webext.browserAction.setBadgeBackgroundColor(...arguments);
             }
-            catch (reason) {
+            catch {
             }
         };
         vAPI.browserAction.setBadgeText = async function() {
             try {
                 await webext.browserAction.setBadgeText(...arguments);
             }
-            catch (reason) {
+            catch {
             }
         };
         vAPI.browserAction.setIcon = async function() {
             try {
                 await webext.browserAction.setIcon(...arguments);
             }
-            catch (reason) {
+            catch {
             }
         };
     }
@@ -807,7 +792,7 @@ if ( webext.browserAction instanceof Object ) {
             let data;
             try {
                 data = ctx.getImageData(0, 0, w, h);
-            } catch(ex) {
+            } catch {
             }
             return data;
         };
@@ -958,6 +943,7 @@ vAPI.messaging = {
 
     onPortDisconnect: function(port) {
         this.ports.delete(port.name);
+        void browser.runtime.lastError;
     },
 
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/Port
@@ -1083,7 +1069,7 @@ vAPI.messaging = {
                     msgId: this.msgId,
                     msg: response !== undefined ? response : null,
                 });
-            } catch (ex) {
+            } catch {
                 this.messaging.onPortDisconnect(this.port);
             }
             // Store for reuse
@@ -1219,7 +1205,7 @@ vAPI.Net = class {
         {
             const wrrt = browser.webRequest.ResourceType;
             for ( const typeKey in wrrt ) {
-                if ( hasOwnProperty(wrrt, typeKey) ) {
+                if ( Object.hasOwn(wrrt, typeKey) ) {
                     this.validTypes.add(wrrt[typeKey]);
                 }
             }
@@ -1381,6 +1367,14 @@ vAPI.Net = class {
         if ( this.suspendDepth !== 0 ) { return; }
         this.unsuspendAllRequests(discard);
     }
+    headerValue(headers, name) {
+        for ( const header of headers ) {
+            if ( header.name.toLowerCase() === name ) {
+                return header.value.trim();
+            }
+        }
+        return '';
+    }
     static canSuspend() {
         return false;
     }
@@ -1464,7 +1458,7 @@ vAPI.adminStorage = (( ) => {
         let store;
         try {
             store = await webext.storage.managed.get();
-        } catch(ex) {
+        } catch {
         }
         vAPI.storage.set({ cachedManagedStorage: store || {} });
     };
@@ -1479,7 +1473,7 @@ vAPI.adminStorage = (( ) => {
                 } else {
                     bin = bin.cachedManagedStorage;
                 }
-            } catch(ex) {
+            } catch {
                 bin = {};
             }
             cacheManagedStorage();
@@ -1679,7 +1673,7 @@ vAPI.cloud = (( ) => {
         // operation to fail.
         try {
             await deleteChunks(datakey, chunkCount + 1);
-        } catch (reason) {
+        } catch {
         }
 
         // Push the data to browser-provided cloud storage.
@@ -1733,7 +1727,7 @@ vAPI.cloud = (( ) => {
             if ( typeof entry === 'string' ) {
                 entry = JSON.parse(entry);
             }
-        } catch(_) {
+        } catch {
         }
         return entry;
     };
@@ -1754,7 +1748,7 @@ vAPI.cloud = (( ) => {
                 webext.storage.sync.getBytesInUse(keys),
                 webext.storage.sync.getBytesInUse(null),
             ]);
-        } catch(ex) {
+        } catch {
         }
         if ( Array.isArray(results) === false ) { return; }
         return { used: results[0], total: results[1], max: QUOTA_BYTES };

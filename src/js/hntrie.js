@@ -457,7 +457,7 @@ class HNTrieContainer {
     }
 
     fromSelfie(selfie) {
-        if ( selfie instanceof Object === false ) { return false; }
+        if ( typeof selfie !== 'object' || selfie === null ) { return false; }
         if ( selfie.buf32 instanceof Uint32Array === false ) { return false; }
         if ( selfie.checksum !== i32Checksum(selfie.buf32) ) { return false; }
         this.needle = '';
@@ -586,6 +586,7 @@ class HNTrieContainer {
     dumpInfo() {
         return [
             `Buffer size (Uint8Array): ${this.buf32[CHAR1_SLOT].toLocaleString('en')}`,
+            `  Char segment size: ${(this.buf32[CHAR1_SLOT] - this.buf32[CHAR0_SLOT]).toLocaleString('en')}`,
             `WASM: ${this.wasmMemory === null ? 'disabled' : 'enabled'}`,
         ].join('\n');
     }

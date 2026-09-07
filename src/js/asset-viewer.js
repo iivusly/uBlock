@@ -21,12 +21,8 @@
 
 /* global CodeMirror, uBlockDashboard */
 
-'use strict';
-
-/******************************************************************************/
-
-import { dom, qs$ } from './dom.js';
 import './codemirror/ubo-static-filtering.js';
+import { dom, qs$ } from './dom.js';
 
 /******************************************************************************/
 
@@ -77,9 +73,9 @@ import './codemirror/ubo-static-filtering.js';
     });
 
     vAPI.messaging.send('dashboard', {
-        what: 'getTrustedScriptletTokens',
+        what: 'getTrustedTokens',
     }).then(tokens => {
-        cmEditor.setOption('trustedScriptletTokens', tokens);
+        cmEditor.setOption('trustedTokens', tokens);
     });
 
     const details = await vAPI.messaging.send('default', {

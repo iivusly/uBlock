@@ -128,7 +128,7 @@
     "description": "Tooltip used for the logger icon in the panel"
   },
   "popupTipReport": {
-    "message": "Laporkan masalah situs web ini",
+    "message": "Laporkan masalah di situs web ini",
     "description": "Tooltip used for the 'chat' icon in the panel"
   },
   "popupTipNoPopups": {
@@ -220,7 +220,7 @@
     "description": "Tooltip when hovering the top-most cell of the global-rules column."
   },
   "popupTipLocalRules": {
-    "message": "Aturan lokal: kolom ini untuk aturan yang diterapkan ke situs yang sedang dikunjungi saja.\nAturan lokal menimpa aturan global.",
+    "message": "Aturan lokal: kolom ini untuk aturan yang diterapkan ke situs yang sedang dikunjungi saja.",
     "description": "Tooltip when hovering the top-most cell of the local-rules column."
   },
   "popupTipSaveRules": {
@@ -312,7 +312,7 @@
     "description": "English: Click, Ctrl-click"
   },
   "pickerContextMenuEntry": {
-    "message": "Blokir elemen...",
+    "message": "Blok elemen",
     "description": "An entry in the browser's contextual menu"
   },
   "settingsCollapseBlockedPrompt": {
@@ -484,7 +484,7 @@
     "description": "Filter lists section name"
   },
   "3pGroupSocial": {
-    "message": "Widget sosial",
+    "message": "Gawai sosial",
     "description": "Filter lists section name"
   },
   "3pGroupCookies": {
@@ -508,7 +508,7 @@
     "description": "Filter lists section name"
   },
   "3pImport": {
-    "message": "Impor...",
+    "message": "Impor…",
     "description": "The label for the checkbox used to import external filter lists"
   },
   "3pExternalListsHint": {
@@ -528,7 +528,7 @@
     "description": "used as a tooltip for the clock icon beside a list"
   },
   "3pUpdating": {
-    "message": "Memperbarui...",
+    "message": "Memperbarui…",
     "description": "used as a tooltip for the spinner icon beside a list"
   },
   "3pNetworkError": {
@@ -536,7 +536,7 @@
     "description": "used as a tooltip for error icon beside a list"
   },
   "1pTrustWarning": {
-    "message": "Jangan tambah filter dari sumber yang tidak tepercaya.",
+    "message": "Jangan tambah filter dari sumber yang tidak terpercaya.",
     "description": "Warning against copy-pasting filters from random sources"
   },
   "1pEnableMyFiltersLabel": {
@@ -592,7 +592,7 @@
     "description": "Will discard manually-edited content and exit manual-edit mode"
   },
   "rulesImport": {
-    "message": "Impor dari berkas...",
+    "message": "Impor dari berkas…",
     "description": ""
   },
   "rulesExport": {
@@ -897,14 +897,14 @@
   },
   "supportOpenButton": {
     "message": "Buka",
-    "description": "Text for button which open an external webpage in Support pane"
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportReportSpecificButton": {
-    "message": "Buat laporan baru",
-    "description": "Text for button which open an external webpage in Support pane"
+    "message": "Buat laporan baru di Github",
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportFindSpecificButton": {
-    "message": "Temukan laporan serupa",
+    "message": "Temukan laporan serupa di Github",
     "description": "A clickable link in the filter issue reporter section"
   },
   "supportS1H": {
@@ -954,10 +954,6 @@
   "supportS5P1": {
     "message": "Di bawah ini adalah informasi teknis yang mungkin berguna saat sukarelawan berusaha membantu memecahkan masalah Anda.",
     "description": "First paragraph of 'Troubleshooting Information' section in Support pane"
-  },
-  "supportS5P2": {
-    "message": "<b>Penting:</b> Informasi yang sifatnya privat dan sensitif disensor secara bawaan. Informasi yang disensor mungkin akan membuat proses memecahkan masalah semakin sulit.",
-    "description": "Second paragraph of 'Troubleshooting Information' section in Support pane"
   },
   "supportS6H": {
     "message": "Laporkan masalah filter",
@@ -1011,17 +1007,13 @@
     "message": "Membuka tab atau jendela yang tidak diinginkan",
     "description": "An entry in the widget used to select the type of issue"
   },
+  "supportS6Select1Option7": {
+    "message": "Mengarah ke perangkat lunak jahat, pengelabuan",
+    "description": "An entry in the widget used to select the type of issue"
+  },
   "supportS6Checkbox1": {
     "message": "Beri label halaman web sebagai “TAUSB” (<a href=\"https://wikipedia.org/wiki/Not_safe_for_work\">“Tidak Aman Untuk Saat Bekerja”</a>)",
     "description": "A checkbox to use for NSFW sites"
-  },
-  "supportRedact": {
-    "message": "Sensor",
-    "description": "Text for 'Redact' button"
-  },
-  "supportUnredact": {
-    "message": "Batal sensor",
-    "description": "Text for 'Unredact' button"
   },
   "aboutPrivacyPolicy": {
     "message": "Kebijakan privasi",
@@ -1056,7 +1048,7 @@
     "description": "Shown in the About pane"
   },
   "aboutCDNs": {
-    "message": "Daftar filter uBO sendiri dihosting secara gratis di <a href=\"https://wikipedia.org/wiki/Content_delivery_network\">CDN</a> berikut:",
+    "message": "Daftar filter bawaan uBO dihosting secara gratis di <a href=\"https://wikipedia.org/wiki/Content_delivery_network\">CDN</a> berikut:",
     "description": "Shown in the About pane"
   },
   "aboutCDNsInfo": {
@@ -1072,11 +1064,11 @@
     "description": "English: my-ublock-backup_{{datetime}}.txt"
   },
   "aboutRestoreDataButton": {
-    "message": "Pulihkan dari berkas...",
+    "message": "Pulihkan dari berkas…",
     "description": "English: Restore from file..."
   },
   "aboutResetDataButton": {
-    "message": "Kembalikan ke pengaturan bawaan...",
+    "message": "Kembalikan ke pengaturan bawaan…",
     "description": "English: Reset to default settings..."
   },
   "aboutRestoreDataConfirm": {
@@ -1094,10 +1086,6 @@
   "errorCantConnectTo": {
     "message": "Galat jaringan: {{msg}}",
     "description": "English: Network error: {{msg}}"
-  },
-  "subscriberConfirm": {
-    "message": "Tambah URL berikut ke ke daftar filter khusus Anda?\n\nJudul: \"{{title}}\"\nURL: {{url}}",
-    "description": "No longer used"
   },
   "subscribeButton": {
     "message": "Berlangganan",
@@ -1187,6 +1175,26 @@
     "message": "Lanjutkan",
     "description": "Button text to navigate to the blocked page"
   },
+  "docblockedRedirectPrompt": {
+    "message": "Halaman yang terblokir ingin dialihkan ke situs lain. Jika Anda memilih untuk melanjutkan, Anda akan langsung menuju ke: {{url}}",
+    "description": "Text warning about an incoming redirect"
+  },
+  "docblockedReasonLabel": {
+    "message": "Penyebab",
+    "description": "The label which prepend the actual reason why a page was blocked"
+  },
+  "docblockedReasonMalicious": {
+    "message": "Berbahaya",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonTracker": {
+    "message": "Pelacak",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonDisreputable": {
+    "message": "Tidak bisa dipercaya",
+    "description": "An actual reason why a page was blocked"
+  },
   "cloudPush": {
     "message": "Ekspor ke penyimpanan awan",
     "description": "tooltip"
@@ -1232,7 +1240,7 @@
     "description": "An entry in the browser's contextual menu"
   },
   "contextMenuSubscribeToList": {
-    "message": "Berlangganan daftar filter...",
+    "message": "Berlangganan daftar filter…",
     "description": "An entry in the browser's contextual menu"
   },
   "contextMenuTemporarilyAllowLargeMediaElements": {

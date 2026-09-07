@@ -20,24 +20,28 @@
 */
 
 import {
-    TRUSTED_DIRECTIVE_BASE_RULE_ID,
-    getDynamicRules,
-} from './ruleset-manager.js';
-
-import {
-    adminRead,
-    browser,
-    dnr,
-    localRead, localRemove, localWrite,
-    sessionRead, sessionWrite,
-} from './ext.js';
-
-import {
     broadcastMessage,
     hostnamesFromMatches,
     isDescendantHostnameOfIter,
     toBroaderHostname,
 } from './utils.js';
+
+import {
+    browser,
+    localRead, localRemove, localWrite,
+    sessionRead, sessionWrite,
+} from './ext.js';
+
+import {
+    rulesetConfig,
+    saveRulesetConfig,
+} from './config.js';
+
+import { adminReadEx } from './admin.js';
+import { deferredTasks } from './deferred-tasks.js';
+import { filteringModesToDNR } from './ruleset-manager.js';
+import { hasBroadHostPermissions } from './ext-utils.js';
+
 
 /******************************************************************************/
 
@@ -50,6 +54,13 @@ export const     MODE_NONE = 0;
 export const    MODE_BASIC = 1;
 export const  MODE_OPTIMAL = 2;
 export const MODE_COMPLETE = 3;
+
+export const defaultFilteringModes = {
+    none: [],
+    basic: [],
+    optimal: [ 'all-urls' ],
+    complete: [],
+};
 
 /******************************************************************************/
 
@@ -73,19 +84,6 @@ const pruneHostnameFromSet = (hostname, hnSet) => {
 
 /******************************************************************************/
 
-const eqSets = (setBefore, setAfter) => {
-    if ( setBefore.size !== setAfter.size ) { return false; }
-    for ( const hn of setAfter ) {
-        if ( setBefore.has(hn) === false ) { return false; }
-    }
-    for ( const hn of setBefore ) {
-        if ( setAfter.has(hn) === false ) { return false; }
-    }
-    return true;
-};
-
-/******************************************************************************/
-
 const serializeModeDetails = details => {
     return {
         none: Array.from(details.none),
@@ -103,6 +101,22 @@ const unserializeModeDetails = details => {
         complete: new Set(details.complete ?? details.extendedGeneric),
     };
 };
+
+/******************************************************************************/
+
+function fixFilteringModeDetails(details) {
+    const { none, basic, optimal, complete } = unserializeModeDetails(details);
+    // Descendant hostnames cannot override no-filtering mode
+    for ( const exclude of none ) {
+        basic.delete(exclude);
+        pruneDescendantHostnamesFromSet(exclude, basic);
+        optimal.delete(exclude);
+        pruneDescendantHostnamesFromSet(exclude, optimal);
+        complete.delete(exclude);
+        pruneDescendantHostnamesFromSet(exclude, complete);
+    }
+    return { none, basic, optimal, complete };
+}
 
 /******************************************************************************/
 
@@ -224,38 +238,64 @@ function applyFilteringMode(filteringModes, hostname, afterLevel) {
 
 /******************************************************************************/
 
-async function readFilteringModeDetails() {
-    if ( readFilteringModeDetails.cache ) {
-        return readFilteringModeDetails.cache;
-    }
-    const sessionModes = await sessionRead('filteringModeDetails');
-    if ( sessionModes instanceof Object ) {
-        readFilteringModeDetails.cache = unserializeModeDetails(sessionModes);
-        return readFilteringModeDetails.cache;
-    }
-    let [ userModes, adminNoFiltering ] = await Promise.all([
-        localRead('filteringModeDetails'),
-        localRead('adminNoFiltering'),
-    ]);
-    if ( userModes === undefined ) {
-        userModes = { basic: [ 'all-urls' ] };
-    }
-    userModes = unserializeModeDetails(userModes);
-    if ( Array.isArray(adminNoFiltering) ) {
-        for ( const hn of adminNoFiltering ) {
-            applyFilteringMode(userModes, hn, 0);
+export async function readFilteringModeDetails(bypassCache = false) {
+    if ( bypassCache === false ) {
+        if ( readFilteringModeDetails.cache ) {
+            return readFilteringModeDetails.cache;
         }
+        const sessionModes = await sessionRead('filteringModeDetails');
+        if ( sessionModes instanceof Object ) {
+            readFilteringModeDetails.cache = unserializeModeDetails(sessionModes);
+            return readFilteringModeDetails.cache;
+        }
+    }
+    let [
+        userModes = structuredClone(defaultFilteringModes),
+        adminDefaultFiltering,
+        adminNoFiltering,
+    ] = await Promise.all([
+        localRead('filteringModeDetails'),
+        adminReadEx('defaultFiltering'),
+        adminReadEx('noFiltering'),
+    ]);
+    userModes = unserializeModeDetails(userModes);
+    if ( adminDefaultFiltering !== undefined ) {
+        const modefromName = {
+            none: MODE_NONE,
+            basic: MODE_BASIC,
+            optimal: MODE_OPTIMAL,
+            complete: MODE_COMPLETE,
+        };
+        const adminDefaultFilteringMode = modefromName[adminDefaultFiltering];
+        if ( adminDefaultFilteringMode !== undefined ) {
+            applyFilteringMode(userModes, 'all-urls', adminDefaultFilteringMode);
+        }
+    }
+    if ( Array.isArray(adminNoFiltering) && adminNoFiltering.length !== 0 ) {
+        if ( adminNoFiltering.includes('-*') ) {
+            userModes.none.clear();
+        }
+        let modified = false;
+        for ( const token of adminNoFiltering ) {
+            if ( token.charAt(0) === '-' ) {
+                const hn = token.slice(1);
+                if ( userModes.none.has(hn) === false ) { continue; }
+                userModes.none.delete(hn);
+                modified = true;
+            } else if ( userModes.none.has(token) === false ) {
+                userModes.none.add(token);
+                modified = true;
+            }
+        }
+        if ( modified ) {
+            deferredTasks.add('registerContentScripts');
+            deferredTasks.add('registerUserScripts');
+        }
+        userModes = fixFilteringModeDetails(userModes);
     }
     filteringModesToDNR(userModes);
     sessionWrite('filteringModeDetails', serializeModeDetails(userModes));
     readFilteringModeDetails.cache = userModes;
-    adminRead('noFiltering').then(results => {
-        if ( results ) {
-            localWrite('adminNoFiltering', results);
-        } else {
-            localRemove('adminNoFiltering');
-        }
-    });
     return userModes;
 }
 
@@ -267,115 +307,38 @@ async function writeFilteringModeDetails(afterDetails) {
     localWrite('filteringModeDetails', data);
     sessionWrite('filteringModeDetails', data);
     readFilteringModeDetails.cache = unserializeModeDetails(data);
-
-    Promise.all([
+    return Promise.all([
         getDefaultFilteringMode(),
-        getTrustedSites(),
+        hasBroadHostPermissions(),
+        localWrite('filteringModeDetails', data),
+        sessionWrite('filteringModeDetails', data),
     ]).then(results => {
         broadcastMessage({
             defaultFilteringMode: results[0],
-            trustedSites: Array.from(results[1]),
+            hasOmnipotence: results[1],
+            filteringModeDetails: readFilteringModeDetails.cache,
         });
     });
 }
 
 /******************************************************************************/
 
-async function filteringModesToDNR(modes) {
-    const dynamicRuleMap = await getDynamicRules();
-    const trustedRule = dynamicRuleMap.get(TRUSTED_DIRECTIVE_BASE_RULE_ID+0);
-    const beforeRequestDomainSet = new Set(trustedRule?.condition.requestDomains);
-    const beforeExcludedRrequestDomainSet = new Set(trustedRule?.condition.excludedRequestDomains);
-    if ( trustedRule !== undefined && beforeRequestDomainSet.size === 0 ) {
-        beforeRequestDomainSet.add('all-urls');
-    } else {
-        beforeExcludedRrequestDomainSet.add('all-urls');
-    }
-
-    const noneHostnames = new Set([ ...modes.none ]);
-    const notNoneHostnames = new Set([ ...modes.basic, ...modes.optimal, ...modes.complete ]);
-    let afterRequestDomainSet = new Set();
-    let afterExcludedRequestDomainSet = new Set();
-    if ( noneHostnames.has('all-urls') ) {
-        afterRequestDomainSet = new Set([ 'all-urls' ]);
-        afterExcludedRequestDomainSet = notNoneHostnames;
-    } else {
-        afterRequestDomainSet = noneHostnames;
-        afterExcludedRequestDomainSet = new Set([ 'all-urls' ]);
-    }
-
-    if ( eqSets(beforeRequestDomainSet, afterRequestDomainSet) ) {
-        if ( eqSets(beforeExcludedRrequestDomainSet, afterExcludedRequestDomainSet) ) {
-            return;
-        }
-    }
-
-    const removeRuleIds = [
-        TRUSTED_DIRECTIVE_BASE_RULE_ID+0,
-        TRUSTED_DIRECTIVE_BASE_RULE_ID+1,
-    ];
-    dynamicRuleMap.delete(TRUSTED_DIRECTIVE_BASE_RULE_ID+0);
-    dynamicRuleMap.delete(TRUSTED_DIRECTIVE_BASE_RULE_ID+1);
-
-    const allowEverywhere = afterRequestDomainSet.delete('all-urls');
-    afterExcludedRequestDomainSet.delete('all-urls');
-
-    const addRules = [];
-    if (
-        allowEverywhere ||
-        afterRequestDomainSet.size !== 0 ||
-        afterExcludedRequestDomainSet.size !== 0
-    ) {
-        const rule0 = {
-            id: TRUSTED_DIRECTIVE_BASE_RULE_ID+0,
-            action: { type: 'allowAllRequests' },
-            condition: {
-                resourceTypes: [ 'main_frame' ],
-            },
-            priority: 100,
-        };
-        if ( afterRequestDomainSet.size !== 0 ) {
-            rule0.condition.requestDomains = Array.from(afterRequestDomainSet);
-        } else if ( afterExcludedRequestDomainSet.size !== 0 ) {
-            rule0.condition.excludedRequestDomains = Array.from(afterExcludedRequestDomainSet);
-        }
-        addRules.push(rule0);
-        dynamicRuleMap.set(TRUSTED_DIRECTIVE_BASE_RULE_ID+0, rule0);
-        // https://github.com/uBlockOrigin/uBOL-home/issues/114
-        const rule1 = {
-            id: TRUSTED_DIRECTIVE_BASE_RULE_ID+1,
-            action: { type: 'allow' },
-            condition: {
-                resourceTypes: [ 'script' ],
-            },
-            priority: 100,
-        };
-        if ( rule0.condition.requestDomains ) {
-            rule1.condition.initiatorDomains = rule0.condition.requestDomains.slice();
-        } else if ( rule0.condition.excludedRequestDomains ) {
-            rule1.condition.excludedInitiatorDomains = rule0.condition.excludedRequestDomains.slice();
-        }
-        addRules.push(rule1);
-        dynamicRuleMap.set(TRUSTED_DIRECTIVE_BASE_RULE_ID+1, rule1);
-    }
-
-    const updateOptions = { removeRuleIds };
-    if ( addRules.length ) {
-        updateOptions.addRules = addRules;
-    }
-    await dnr.updateDynamicRules(updateOptions);
-}
-
-/******************************************************************************/
-
-export async function getFilteringModeDetails() {
+export async function getFilteringModeDetails(serializable = false) {
     const actualDetails = await readFilteringModeDetails();
-    return {
+    const out = {
         none: new Set(actualDetails.none),
         basic: new Set(actualDetails.basic),
         optimal: new Set(actualDetails.optimal),
         complete: new Set(actualDetails.complete),
     };
+    return serializable ? serializeModeDetails(out) : out;
+}
+
+export async function setFilteringModeDetails(details) {
+    await localWrite('filteringModeDetails',
+        serializeModeDetails(fixFilteringModeDetails(details))
+    );
+    await readFilteringModeDetails(true);
 }
 
 /******************************************************************************/
@@ -404,66 +367,69 @@ export function setDefaultFilteringMode(afterLevel) {
 
 /******************************************************************************/
 
-export async function getTrustedSites() {
-    const filteringModes = await getFilteringModeDetails();
-    return filteringModes.none;
-}
-
-export async function setTrustedSites(hostnames) {
-    const filteringModes = await getFilteringModeDetails();
-    const { none } = filteringModes;
-    const hnSet = new Set(hostnames);
-    let modified = false;
-    // Set default mode to Basic when removing No-filtering as default mode
-    if ( none.has('all-urls') && hnSet.has('all-urls') === false ) {
-        applyFilteringMode(filteringModes, 'all-urls', MODE_BASIC);
-        modified = true;
+export async function persistHostPermissions(iter) {
+    if ( iter === undefined ) {
+        const permissions = await browser.permissions.getAll();
+        iter = hostnamesFromMatches(permissions.origins) || [];
     }
-    for ( const hn of none ) {
-        if ( hnSet.has(hn) ) {
-            hnSet.delete(hn);
-        } else {
-            none.delete(hn);
-            modified = true;
-        }
-    }
-    for ( const hn of hnSet ) {
-        const level = applyFilteringMode(filteringModes, hn, MODE_NONE);
-        if ( level !== MODE_NONE ) { continue; }
-        modified = true;
-    }
-    if ( modified === false ) { return; }
-    return writeFilteringModeDetails(filteringModes);
+    const hostnames = Array.from(iter);
+    return hostnames.length !== 0
+        ? localWrite('permissions.hostnames', hostnames)
+        : localRemove('permissions.hostnames');
 }
 
 /******************************************************************************/
 
 export async function syncWithBrowserPermissions() {
-    const [ permissions, beforeMode ] = await Promise.all([
+    const [
+        beforePermissions,
+        afterPermissions,
+        beforeMode,
+    ] = await Promise.all([
+        localRead('permissions.hostnames'),
         browser.permissions.getAll(),
         getDefaultFilteringMode(),
     ]);
-    const allowedHostnames = new Set(hostnamesFromMatches(permissions.origins || []));
+    const beforeAllowedHostnames = new Set(beforePermissions);
+    const afterAllowedHostnames = new Set(hostnamesFromMatches(afterPermissions.origins || []));
+    await persistHostPermissions(afterAllowedHostnames);
+    const hasBroadHostPermissions = afterAllowedHostnames.has('all-urls');
+    const broadHostPermissionsToggled =
+        hasBroadHostPermissions !== rulesetConfig.hasBroadHostPermissions;
     let modified = false;
-    if ( beforeMode > MODE_BASIC && allowedHostnames.has('all-urls') === false ) {
+    if ( beforeMode > MODE_BASIC && hasBroadHostPermissions === false ) {
         await setDefaultFilteringMode(MODE_BASIC);
         modified = true;
+    } else if ( beforeMode === MODE_BASIC && hasBroadHostPermissions && broadHostPermissionsToggled ) {
+        await setDefaultFilteringMode(MODE_OPTIMAL);
+        modified = true;
+    }
+    if ( broadHostPermissionsToggled ) {
+        rulesetConfig.hasBroadHostPermissions = hasBroadHostPermissions;
+        saveRulesetConfig();
     }
     const afterMode = await getDefaultFilteringMode();
-    if ( afterMode > MODE_BASIC ) { return false; }
+    if ( afterMode > MODE_BASIC ) { return afterMode !== beforeMode; }
     const filteringModes = await getFilteringModeDetails();
-    const { optimal, complete } = filteringModes;
-    for ( const hn of optimal ) {
-        if ( allowedHostnames.has(hn) ) { continue; }
-        optimal.delete(hn);
-        modified = true;
+    if ( afterAllowedHostnames.has('all-urls') === false ) {
+        const { none, basic, optimal, complete } = filteringModes;
+        for ( const hn of new Set([ ...optimal, ...complete ]) ) {
+            if ( afterAllowedHostnames.has(hn) ) { continue; }
+            if ( isDescendantHostnameOfIter(hn, afterAllowedHostnames) ) { continue; }
+            applyFilteringMode(filteringModes, hn, afterMode);
+            modified = true;
+        }
+        for ( const hn of afterAllowedHostnames ) {
+            if ( beforeAllowedHostnames.has(hn) ) { continue; }
+            if ( optimal.has(hn) || complete.has(hn) ) { continue; }
+            if ( basic.has(hn) || none.has(hn) ) { continue; }
+            applyFilteringMode(filteringModes, hn, MODE_OPTIMAL);
+            modified = true;
+        }
+        if ( modified ) {
+            await writeFilteringModeDetails(filteringModes);
+        }
     }
-    for ( const hn of complete ) {
-        if ( allowedHostnames.has(hn) ) { continue; }
-        complete.delete(hn);
-        modified = true;
-    }
-    await writeFilteringModeDetails(filteringModes);
     return modified;
 }
 

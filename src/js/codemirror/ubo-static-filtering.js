@@ -23,8 +23,10 @@
 
 /******************************************************************************/
 
+import '../../lib/regexanalyzer/regex.js';
 import * as sfp from '../static-filtering-parser.js';
 import { dom, qs$ } from '../dom.js';
+import { tokenizableStrFromRegex } from '../regex-analyzer.js';
 
 /******************************************************************************/
 
@@ -44,10 +46,10 @@ CodeMirror.defineOption('trustedSource', false, (cm, trusted) => {
     }));
 });
 
-CodeMirror.defineOption('trustedScriptletTokens', undefined, (cm, tokens) => {
+CodeMirror.defineOption('trustedTokens', undefined, (cm, tokens) => {
     if ( tokens === undefined || tokens === null ) { return; }
     if ( typeof tokens[Symbol.iterator] !== 'function' ) { return; }
-    self.dispatchEvent(new CustomEvent('trustedScriptletTokens', {
+    self.dispatchEvent(new CustomEvent('trustedTokens', {
         detail: new Set(tokens),
     }));
 });
@@ -66,6 +68,8 @@ const uBOStaticFilteringMode = (( ) => {
             node || mode.currentWalkerNode, sfp.NODE_FLAG_ERROR
         ) !== 0;
     };
+
+    const reGoodRegexToken = /[^\x01%0-9A-Za-z][%0-9A-Za-z]{7,}|[^\x01%0-9A-Za-z][%0-9A-Za-z]{1,6}[^\x01%0-9A-Za-z]/;
 
     const colorFromAstNode = mode => {
         if ( mode.astParser.nodeIsEmptyString(mode.currentWalkerNode) ) { return '+'; }
@@ -119,7 +123,9 @@ const uBOStaticFilteringMode = (( ) => {
         case sfp.NODE_TYPE_NET_PATTERN:
             if ( mode.astWalker.canGoDown() ) { break; }
             if ( mode.astParser.isRegexPattern() ) {
-                if ( mode.astParser.getNodeFlags(mode.currentWalkerNode, sfp.NODE_FLAG_PATTERN_UNTOKENIZABLE) !== 0 ) {
+                const s = mode.astParser.getNodeString(mode.currentWalkerNode);
+                const tokenizable = tokenizableStrFromRegex(s);
+                if ( reGoodRegexToken.test(tokenizable) === false ) {
                     return 'variable warning';
                 }
                 return 'variable notice';
@@ -161,7 +167,6 @@ const uBOStaticFilteringMode = (( ) => {
         case sfp.NODE_TYPE_NET_OPTION_NAME_FROM:
         case sfp.NODE_TYPE_NET_OPTION_NAME_GENERICBLOCK:
         case sfp.NODE_TYPE_NET_OPTION_NAME_GHIDE:
-        case sfp.NODE_TYPE_NET_OPTION_NAME_HEADER:
         case sfp.NODE_TYPE_NET_OPTION_NAME_IMAGE:
         case sfp.NODE_TYPE_NET_OPTION_NAME_IMPORTANT:
         case sfp.NODE_TYPE_NET_OPTION_NAME_INLINEFONT:
@@ -179,9 +184,12 @@ const uBOStaticFilteringMode = (( ) => {
         case sfp.NODE_TYPE_NET_OPTION_NAME_REDIRECT:
         case sfp.NODE_TYPE_NET_OPTION_NAME_REDIRECTRULE:
         case sfp.NODE_TYPE_NET_OPTION_NAME_REMOVEPARAM:
+        case sfp.NODE_TYPE_NET_OPTION_NAME_RESPONSEHEADER:
+        case sfp.NODE_TYPE_NET_OPTION_NAME_REQUESTHEADER:
         case sfp.NODE_TYPE_NET_OPTION_NAME_SCRIPT:
         case sfp.NODE_TYPE_NET_OPTION_NAME_SHIDE:
         case sfp.NODE_TYPE_NET_OPTION_NAME_TO:
+        case sfp.NODE_TYPE_NET_OPTION_NAME_TOP:
         case sfp.NODE_TYPE_NET_OPTION_NAME_URLTRANSFORM:
         case sfp.NODE_TYPE_NET_OPTION_NAME_XHR:
         case sfp.NODE_TYPE_NET_OPTION_NAME_WEBRTC:
@@ -189,6 +197,7 @@ const uBOStaticFilteringMode = (( ) => {
             mode.lastNetOptionType = nodeType;
             return 'def';
         case sfp.NODE_TYPE_NET_OPTION_ASSIGN:
+        case sfp.NODE_TYPE_NET_OPTION_QUOTE:
             return 'def';
         case sfp.NODE_TYPE_NET_OPTION_VALUE:
             if ( mode.astWalker.canGoDown() ) { break; }
@@ -217,6 +226,7 @@ const uBOStaticFilteringMode = (( ) => {
             this.astParser = new sfp.AstFilterParser({
                 interactive: true,
                 nativeCssHas: vAPI.webextFlavor.env.includes('native_css_has'),
+                canFilterResponseBody: vAPI.webextFlavor.env.includes('html_filtering'),
             });
             this.astWalker = this.astParser.getWalker();
             this.currentWalkerNode = 0;
@@ -225,8 +235,8 @@ const uBOStaticFilteringMode = (( ) => {
                 const { trusted } = ev.detail;
                 this.astParser.options.trustedSource = trusted;
             });
-            self.addEventListener('trustedScriptletTokens', ev => {
-                this.astParser.options.trustedScriptletTokens = ev.detail;
+            self.addEventListener('trustedTokens', ev => {
+                this.astParser.options.trustedTokens = ev.detail;
             });
         }
     }
@@ -337,6 +347,7 @@ function initHints() {
     const astParser = new sfp.AstFilterParser({
         interactive: true,
         nativeCssHas: vAPI.webextFlavor.env.includes('native_css_has'),
+        canFilterResponseBody: vAPI.webextFlavor.env.includes('html_filtering'),
     });
     const proceduralOperatorNames = new Map(
         Array.from(sfp.proceduralOperatorTokens)
@@ -506,10 +517,12 @@ function initHints() {
         if ( patternNode === 0 ) { return; }
         const patternEnd = astParser.getNodeStringEnd(patternNode);
         const beg = cursor.ch;
-        if ( beg <= patternEnd ) {
-            return getNetPatternHints(cursor, line);
-        }
         const lineBefore = line.slice(0, beg);
+        if ( beg <= patternEnd ) {
+            if ( astParser.hasOptions() !== false || lineBefore.includes('$') === false ) {
+                return getNetPatternHints(cursor, line);
+            }
+        }
         const lineAfter = line.slice(beg);
         let matchLeft = /[^$,]*$/.exec(lineBefore);
         let matchRight = /^[^,]*/.exec(lineAfter);
@@ -525,7 +538,7 @@ function initHints() {
                 matchRight[0]
             );
         }
-        if ( /^(domain|from)=/.test(matchLeft[0]) ) {
+        if ( /^(domain|from|top)=/.test(matchLeft[0]) ) {
             return getOriginHints(cursor, line);
         }
     };
@@ -704,6 +717,7 @@ CodeMirror.registerHelper('fold', 'ubo-static-filtering', (( ) => {
     const astParser = new sfp.AstFilterParser({
         interactive: true,
         nativeCssHas: vAPI.webextFlavor.env.includes('native_css_has'),
+        canFilterResponseBody: vAPI.webextFlavor.env.includes('html_filtering'),
     });
 
     const changeset = [];
@@ -749,6 +763,9 @@ CodeMirror.registerHelper('fold', 'ubo-static-filtering', (( ) => {
             case sfp.AST_ERROR_UNTRUSTED_SOURCE:
                 msg = `${msg}: Filter requires trusted source`;
                 break;
+            case sfp.AST_ERROR_CAPABILITY:
+                msg = `Filter unsupported on current platform`;
+                return { lint: 'warning', msg };
             default:
                 if ( astParser.isCosmeticFilter() && astParser.result.error ) {
                     msg = `${msg}: ${astParser.result.error}`;
@@ -804,6 +821,14 @@ CodeMirror.registerHelper('fold', 'ubo-static-filtering', (( ) => {
             node: null,
             html: [
                 '<div class="CodeMirror-lintmarker" data-lint="error" data-error="y">&nbsp;',
+                  '<span class="msg"></span>',
+                '</div>',
+            ],
+        },
+        'warning': {
+            node: null,
+            html: [
+                '<div class="CodeMirror-lintmarker" data-lint="warning">&nbsp;',
                   '<span class="msg"></span>',
                 '</div>',
             ],
@@ -952,8 +977,8 @@ CodeMirror.registerHelper('fold', 'ubo-static-filtering', (( ) => {
     };
 
     const processDeletion = (doc, change) => {
-        let { from, to } = change;
-        doc.eachLine(from.line, to.line, lineHandle => {
+        const { from, to } = change;
+        doc.eachLine(from.line, to.line + (to.ch ? 1 : 0), lineHandle => {
             const marker = extractMarker(lineHandle);
             if ( marker === null ) { return; }
             if ( marker.dataset.error === 'y' ) {
@@ -1105,8 +1130,8 @@ CodeMirror.registerHelper('fold', 'ubo-static-filtering', (( ) => {
         astParser.options.trustedSource = trusted;
     });
 
-    self.addEventListener('trustedScriptletTokens', ev => {
-        astParser.options.trustedScriptletTokens = ev.detail;
+    self.addEventListener('trustedTokens', ev => {
+        astParser.options.trustedTokens = ev.detail;
     });
 
     CodeMirror.defineInitHook(cm => {

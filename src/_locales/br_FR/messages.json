@@ -12,7 +12,7 @@
     "description": "English: uBlock₀ — Dashboard"
   },
   "dashboardUnsavedWarning": {
-    "message": "Diwallit! Kemmoù zo ha n'ho peus enrollet anezho",
+    "message": "Diwallit! Kemmoù zo ha n'ho peus ket enrollet",
     "description": "A warning in the dashboard when navigating away from unsaved changes"
   },
   "dashboardUnsavedWarningStay": {
@@ -220,7 +220,7 @@
     "description": "Tooltip when hovering the top-most cell of the global-rules column."
   },
   "popupTipLocalRules": {
-    "message": "Reolennoù lec'hel: er bann-mañ e vez lakaet ar reolennoù ne dalvezont nemet d'al lec'hienn m'emaoc'h.\nAr reolennoù lec'hel a ya a-raok ar reolennoù hollek.",
+    "message": "Reolennoù lec'hel: er bann-mañ e vez lakaet ar reolennoù ne dalvezont nemet d'al lec'hienn m'emaoc'h.",
     "description": "Tooltip when hovering the top-most cell of the local-rules column."
   },
   "popupTipSaveRules": {
@@ -356,7 +356,7 @@
     "description": "Checkbox to let user access advanced, technical features"
   },
   "settingsPrefetchingDisabledPrompt": {
-    "message": "Diweredekaat ar \"rak-lenn\", pe diougan an oberoù war ar rouedad (evit ma ne gennaskfe ket ar rekedoù rouedad stanket)",
+    "message": "Diweredekaat ar \"rak-lenn\", pe diougan an oberoù war ar rouedad (evit ma ne gennaskfe ket rekedoù ar rouedadoù stanket)",
     "description": "English: "
   },
   "settingsHyperlinkAuditingDisabledPrompt": {
@@ -476,7 +476,7 @@
     "description": "Filter lists section name"
   },
   "3pGroupPrivacy": {
-    "message": "Prevezded",
+    "message": "Buhez prevez",
     "description": "Filter lists section name"
   },
   "3pGroupMalware": {
@@ -488,7 +488,7 @@
     "description": "Filter lists section name"
   },
   "3pGroupCookies": {
-    "message": "Kemennadennoù diwar-benn an toupinoù",
+    "message": "Notennoù diwar-benn an toupinoù",
     "description": "Filter lists section name"
   },
   "3pGroupAnnoyances": {
@@ -897,11 +897,11 @@
   },
   "supportOpenButton": {
     "message": "Digeriñ",
-    "description": "Text for button which open an external webpage in Support pane"
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportReportSpecificButton": {
     "message": "Sevel ur rentañ-kont nevez",
-    "description": "Text for button which open an external webpage in Support pane"
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportFindSpecificButton": {
     "message": "Klask danevelloù koulz ha homañ",
@@ -928,7 +928,7 @@
     "description": "Header of 'Filter issues' section in Support pane"
   },
   "supportS3P1": {
-    "message": "Danevellit kudennoù silañ e lec'hiennoù resis zo e-barzh <span data-url=\"https://github.com/uBlockOrigin/uAssets/issues?q=is%3Aissue\">roll evezhiañ kudennoù <code>uBlockOrigin/uAssets</code></span>. <u>Ur c'hont GitHub zo rekis.</u>",
+    "message": "Danevellit kudennoù ar siloù e lec'hiennoù resis e-barzh <span data-url=\"https://github.com/uBlockOrigin/uAssets/issues?q=is%3Aissue\"><code>uBlockOrigin/uAssets</code> roll evezhiañ kudennoù</span>. <u>Ur c'hont GitHub zo rekis.</u>",
     "description": "First paragraph of 'Filter issues' section in Support pane"
   },
   "supportS3P2": {
@@ -955,16 +955,12 @@
     "message": "Amañ dindan ez eus titouroù teknikel a c'hallfe sikour an dud a-youl vat a zo o klask diskoulmañ ur gudenn.",
     "description": "First paragraph of 'Troubleshooting Information' section in Support pane"
   },
-  "supportS5P2": {
-    "message": "<b>Talvoudus:</b> An titouroù a c'hallfe bezañ prevez pe kizidik a zo skarzhet ent-emgefreek. Pa vez skarzhet an titouroù mod-se e c'hall bezañ diaesoc'h da ziskoulmañ ur gudenn.",
-    "description": "Second paragraph of 'Troubleshooting Information' section in Support pane"
-  },
   "supportS6H": {
     "message": "Danevelliñ ur gudenn gant ur sil",
     "description": "Header of 'Report a filter issue' section in Support pane"
   },
   "supportS6P1S1": {
-    "message": "Evit nompas sammañ ar genlabourerien a-youl vat gant meur a zanevell heñvel, gwiriit ma n'eo ket bet danevellet ho kudenn en ar-raok mar plij.",
+    "message": "Evit nompas sammañ ar genlabourerien a-youl vat gant meur a zanevell heñvel, gwiriit ma n'eo ket bet danevellet ho kudenn en a-raok mar plij. <b>Notenn:</b> ma klikit ar bouton e vo kaset anv herberc'hier ar bajenn da c'h-GitHub.",
     "description": "A paragraph in the filter issue reporter section"
   },
   "supportS6P2S1": {
@@ -1000,7 +996,7 @@
     "description": "An entry in the widget used to select the type of issue"
   },
   "supportS6Select1Option4": {
-    "message": "Kudennoù a-fed prevezded he deus",
+    "message": "Kudennoù a-fed ar vuhez prevez he deus",
     "description": "An entry in the widget used to select the type of issue"
   },
   "supportS6Select1Option5": {
@@ -1011,20 +1007,16 @@
     "message": "Digeriñ a ra ivinelloù pe prenestroù noazus",
     "description": "An entry in the widget used to select the type of issue"
   },
+  "supportS6Select1Option7": {
+    "message": "Kas a ra da veziantoù droukyoulet pe d'an higennañ niverel",
+    "description": "An entry in the widget used to select the type of issue"
+  },
   "supportS6Checkbox1": {
     "message": "Merkañ ar bejenn evel \"NSFW\" (<a href=\"https://wikipedia.org/wiki/Not_safe_for_work\">“Not Safe For Work”</a>) hag a dalv ez eus danvez noazus pe kizidik enni",
     "description": "A checkbox to use for NSFW sites"
   },
-  "supportRedact": {
-    "message": "Redact",
-    "description": "Text for 'Redact' button"
-  },
-  "supportUnredact": {
-    "message": "Unredact",
-    "description": "Text for 'Unredact' button"
-  },
   "aboutPrivacyPolicy": {
-    "message": "Politikerezh prevezded",
+    "message": "Politikerezh ar vuhez prevez",
     "description": "Link to privacy policy on GitHub (English)"
   },
   "aboutChangelog": {
@@ -1095,10 +1087,6 @@
     "message": "Fazi rouedad: {{msg}}",
     "description": "English: Network error: {{msg}}"
   },
-  "subscriberConfirm": {
-    "message": "Fellout a ra deoc'h ouzhpennañ an URL-mañ d'ho rolloù siloù?\n\nTitl: \"{{title}}\"\nURL: {{url}}",
-    "description": "No longer used"
-  },
   "subscribeButton": {
     "message": "Koumanantiñ",
     "description": "For the button used to subscribe to a filter list"
@@ -1156,7 +1144,7 @@
     "description": "label to be used for the parameter-less URL: https://cloud.githubusercontent.com/assets/585534/9832014/bfb1b8f0-593b-11e5-8a27-fba472a5529a.png"
   },
   "docblockedFoundIn": {
-    "message": "Hag a vez kavet e-barzh:",
+    "message": "Hag a zo kavet e-barzh:",
     "description": "English: List of filter list names follows"
   },
   "docblockedBack": {
@@ -1186,6 +1174,26 @@
   "docblockedDisable": {
     "message": "Kenderc'hel",
     "description": "Button text to navigate to the blocked page"
+  },
+  "docblockedRedirectPrompt": {
+    "message": "Ar bajenn stanket a fell dezhi adkas d'ul lec'hienn all. M'ho peus c'hoant da genderc'hel e vioc'h kaset d'ar chomlec'h-mañ: {{url}}",
+    "description": "Text warning about an incoming redirect"
+  },
+  "docblockedReasonLabel": {
+    "message": "Abeg:",
+    "description": "The label which prepend the actual reason why a page was blocked"
+  },
+  "docblockedReasonMalicious": {
+    "message": "Malisius",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonTracker": {
+    "message": "Heulier",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonDisreputable": {
+    "message": "Douetus",
+    "description": "An actual reason why a page was blocked"
   },
   "cloudPush": {
     "message": "Ezporzhiañ etrezek stokañ ar goumoulenn (cloud)",

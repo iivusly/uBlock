@@ -19,23 +19,64 @@
     Home: https://github.com/gorhill/uBlock
 */
 
-import { browser, dnr } from './ext.js';
+import {
+    dnr,
+    normalizeDNRRules,
+    webext,
+} from './ext-compat.js';
+
+import {
+    sessionRead,
+    sessionWrite,
+} from './ext.js';
 
 /******************************************************************************/
 
+const isModern = dnr.onRuleMatchedDebug instanceof Object;
+
 export const isSideloaded = (( ) => {
-    if ( dnr.onRuleMatchedDebug instanceof Object === false ) { return false; }
-    const { id } = browser.runtime;
-    // https://addons.mozilla.org/en-US/firefox/addon/ublock-origin-lite/
-    if ( id === 'uBOLite@raymondhill.net' ) { return false; }
-    // https://chromewebstore.google.com/detail/ddkjiahejlhfcafbddmgiahcphecmpfh
-    if ( id === 'ddkjiahejlhfcafbddmgiahcphecmpfh' ) { return false; }
-    // https://microsoftedge.microsoft.com/addons/detail/cimighlppcgcoapaliogpjjdehbnofhn
-    if ( id === 'cimighlppcgcoapaliogpjjdehbnofhn' ) { return false; }
-    return true;
+    const { permissions } = webext.runtime.getManifest();
+    return permissions?.includes('declarativeNetRequestFeedback') ?? false;
 })();
 
 /******************************************************************************/
+
+const CONSOLE_MAX_LINES = 32;
+const consoleOutput = [];
+
+sessionRead('console').then(before => {
+    if ( Array.isArray(before) === false ) { return; }
+    for ( const s of before.reverse() ) {
+        consoleOutput.unshift(s);
+    }
+    consoleTruncate();
+});
+
+const consoleTruncate = ( ) => {
+    if ( consoleOutput.length <= CONSOLE_MAX_LINES ) { return; }
+    consoleOutput.copyWithin(0, -CONSOLE_MAX_LINES);
+    consoleOutput.length = CONSOLE_MAX_LINES;
+};
+
+const consoleAdd = (...args) => {
+    if ( args.length === 0 ) { return; }
+    const now = new Date();
+    const time = [
+        `${now.getUTCMonth()+1}`.padStart(2, '0'),
+        `${now.getUTCDate()}`.padStart(2, '0'),
+        '.',
+        `${now.getUTCHours()}`.padStart(2, '0'),
+        `${now.getUTCMinutes()}`.padStart(2, '0'),
+    ].join('');
+    for ( let i = 0; i < args.length; i++ ) {
+        const s = `[${time}]${args[i]}`;
+        if ( Boolean(s) === false ) { continue; }
+        if ( s === consoleOutput.at(-1) ) { continue; }
+        consoleOutput.push(s);
+    }
+    consoleTruncate();
+    sessionWrite('console', getConsoleOutput());
+}
 
 export const ubolLog = (...args) => {
     // Do not pollute dev console in stable releases.
@@ -43,84 +84,128 @@ export const ubolLog = (...args) => {
     console.info('[uBOL]', ...args);
 };
 
+export const ubolErr = (...args) => {
+    if ( Array.isArray(args) === false ) { return; }
+    if ( globalThis.ServiceWorkerGlobalScope ) {
+        consoleAdd(...args);
+    }
+    // Do not pollute dev console in stable releases.
+    if ( isSideloaded !== true ) { return; }
+    console.error('[uBOL]', ...args);
+};
+
+export const getConsoleOutput = ( ) => {
+    return consoleOutput.slice();
+};
+
+/******************************************************************************/
+
+const rulesets = new Map();
+const bufferSize = isSideloaded ? 256 : 1;
+const matchedRules = new Array(bufferSize);
+matchedRules.fill(null);
+let writePtr = 0;
+
+const pruneLongLists = list => {
+    if ( list.length <= 11 ) { return list; }
+    return [ ...list.slice(0, 5), '...', ...list.slice(-5) ];
+};
+
+const getRuleset = async rulesetId => {
+    if ( rulesets.has(rulesetId) ) { 
+        return rulesets.get(rulesetId);
+    }
+    let rules;
+    if ( rulesetId === dnr.DYNAMIC_RULESET_ID ) {
+        rules = await dnr.getDynamicRules().catch(( ) => undefined);
+    } else {
+        const response = await fetch(`/rulesets/main/${rulesetId}.json`).catch(( ) => undefined);
+        if ( response === undefined ) { return; }
+        rules = await response.json().catch(( ) =>
+            undefined
+        ).then(rules =>
+            normalizeDNRRules(rules)
+        );
+    }
+    if ( Array.isArray(rules) === false ) { return; }
+    const ruleset = new Map();
+    for ( const rule of rules ) {
+        const condition = rule.condition;
+        if ( condition ) {
+            if ( condition.requestDomains ) {
+                condition.requestDomains = pruneLongLists(condition.requestDomains);
+            }
+            if ( condition.initiatorDomains ) {
+                condition.initiatorDomains = pruneLongLists(condition.initiatorDomains);
+            }
+        }
+        const ruleId = rule.id;
+        rule.id = `${rulesetId}/${ruleId}`;
+        ruleset.set(ruleId, rule);
+    }
+    rulesets.set(rulesetId, ruleset);
+    return ruleset;
+};
+
+const getRuleDetails = async ruleInfo => {
+    const { rulesetId, ruleId } = ruleInfo.rule;
+    const ruleset = await getRuleset(rulesetId);
+    if ( ruleset === undefined ) { return; }
+    return { request: ruleInfo.request, rule: ruleset.get(ruleId) };
+};
+
 /******************************************************************************/
 
 export const getMatchedRules = (( ) => {
-    const noopFn = ( ) => Promise.resolve([]);
-    if ( isSideloaded !== true ) { return noopFn; }
-    if ( dnr.onRuleMatchedDebug instanceof Object === false ) { return noopFn; }
+    if ( isSideloaded !== true ) {
+        return ( ) => Promise.resolve([]);
+    }
 
-    const rulesets = new Map();
-    const bufferSize = 256;
-    const matchedRules = new Array(bufferSize);
-    matchedRules.fill(null);
-    let writePtr = 0;
-
-    const pruneLongLists = list => {
-        if ( list.length <= 21 ) { return list; }
-        return [ ...list.slice(0, 10), '...', ...list.slice(-10) ];
-        
-    };
-
-    const getRuleset = async rulesetId => {
-        if ( rulesets.has(rulesetId) ) { 
-            return rulesets.get(rulesetId);
-        }
-        let rules;
-        if ( rulesetId === dnr.DYNAMIC_RULESET_ID ) {
-            rules = await dnr.getDynamicRules().catch(( ) => undefined);
-        } else {
-            const response = await fetch(`/rulesets/main/${rulesetId}.json`).catch(( ) => undefined);
-            if ( response === undefined ) { return; }
-            rules = await response.json().catch(( ) => undefined);
-        }
-        if ( Array.isArray(rules) === false ) { return; }
-        const ruleset = new Map();
-        for ( const rule of rules ) {
-            const condition = rule.condition;
-            if ( condition ) {
-                if ( condition.requestDomains ) {
-                    condition.requestDomains = pruneLongLists(condition.requestDomains);
+    if ( isModern ) {
+        return async tabId => {
+            const promises = [];
+            for ( let i = 0; i < bufferSize; i++ ) {
+                const j = (writePtr + i) % bufferSize;
+                const ruleInfo = matchedRules[j];
+                if ( ruleInfo === null ) { continue; }
+                if ( ruleInfo.request.tabId !== -1 ) {
+                    if ( ruleInfo.request.tabId !== tabId ) { continue; }
                 }
-                if ( condition.initiatorDomains ) {
-                    condition.initiatorDomains = pruneLongLists(condition.initiatorDomains);
-                }
+                const promise = getRuleDetails(ruleInfo);
+                if ( promise === undefined ) { continue; }
+                promises.unshift(promise);
             }
-            const ruleId = rule.id;
-            rule.id = `${rulesetId}/${ruleId}`;
-            ruleset.set(ruleId, rule);
-        }
-        rulesets.set(rulesetId, ruleset);
-        return ruleset;
-    };
-
-    const getRuleDetails = async ruleInfo => {
-        const { rulesetId, ruleId } = ruleInfo.rule;
-        const ruleset = await getRuleset(rulesetId);
-        if ( ruleset === undefined ) { return; }
-        return { request: ruleInfo.request, rule: ruleset.get(ruleId) };
-    };
-
-    dnr.onRuleMatchedDebug.addListener(ruleInfo => {
-        matchedRules[writePtr] = ruleInfo;
-        writePtr = (writePtr + 1) % bufferSize;
-    });
+            return Promise.all(promises);
+        };
+    }
 
     return async tabId => {
+        if ( typeof dnr.getMatchedRules !== 'function' ) { return []; }
+        const matchedRules = await dnr.getMatchedRules({ tabId });
+        if ( matchedRules instanceof Object === false ) { return []; }
         const promises = [];
-        for ( let i = 0; i < bufferSize; i++ ) {
-            const j = (writePtr + i) % bufferSize;
-            const ruleInfo = matchedRules[j];
-            if ( ruleInfo === null ) { continue; }
-            if ( ruleInfo.request.tabId !== -1 ) {
-                if ( ruleInfo.request.tabId !== tabId ) { continue; }
-            }
-            const promise = getRuleDetails(ruleInfo);
-            if ( promise === undefined ) { continue; }
-            promises.unshift(promise);
+        for ( const { tabId, rule } of matchedRules.rulesMatchedInfo ) {
+            promises.push(getRuleDetails({ request: { tabId }, rule }));
         }
         return Promise.all(promises);
     };
 })();
+
+/******************************************************************************/
+
+const matchedRuleListener = ruleInfo => {
+    matchedRules[writePtr] = ruleInfo;
+    writePtr = (writePtr + 1) % bufferSize;
+};
+
+export const toggleDeveloperMode = state => {
+    if ( isSideloaded !== true ) { return; }
+    if ( isModern === false ) { return; } 
+    if ( state ) {
+        dnr.onRuleMatchedDebug.addListener(matchedRuleListener);
+    } else {
+        dnr.onRuleMatchedDebug.removeListener(matchedRuleListener);
+    }
+};
 
 /******************************************************************************/

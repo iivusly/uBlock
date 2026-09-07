@@ -89,7 +89,7 @@ const loadBenchmarkDataset = (( ) => {
             if ( details.content.startsWith('[') ) {
                 try {
                     requests = JSON.parse(details.content);
-                } catch(ex) {
+                } catch {
                 }
             } else {
                 const lineIter = new LineIterator(details.content);
@@ -99,7 +99,7 @@ const loadBenchmarkDataset = (( ) => {
                     if ( line === '' ) { continue; }
                     try {
                         parsed.push(JSON.parse(line));
-                    } catch(ex) {
+                    } catch {
                         parsed.length = 0;
                         break;
                     }
@@ -129,8 +129,6 @@ const loadBenchmarkDataset = (( ) => {
 })();
 
 /******************************************************************************/
-
-// action: 1=test
 
 export async function benchmarkStaticNetFiltering(options = {}) {
     const { target, redirectEngine } = options;
@@ -168,12 +166,15 @@ export async function benchmarkStaticNetFiltering(options = {}) {
     let allowCount = 0;
     let redirectCount = 0;
     let removeparamCount = 0;
+    let urlskipCount = 0;
     let cspCount = 0;
     let permissionsCount = 0;
     let replaceCount = 0;
-    for ( let i = 0; i < requests.length; i++ ) {
-        const request = requests[i];
+    for ( const request of requests ) {
         fctxt.setURL(request.url);
+        if ( fctxt.getIPAddress() === '' ) {
+            fctxt.setIPAddress('93.184.215.14\n2606:2800:21f:cb07:6820:80da:af6b:8b2c');
+        }
         fctxt.setDocOriginFromURL(request.frameUrl);
         fctxt.setType(request.cpt);
         sfne.redirectURL = undefined;
@@ -182,15 +183,18 @@ export async function benchmarkStaticNetFiltering(options = {}) {
         if ( r === 1 ) { blockCount += 1; }
         else if ( r === 2 ) { allowCount += 1; }
         if ( r !== 1 ) {
-            if ( sfne.transformRequest(fctxt) ) {
+            if ( sfne.transformURL(fctxt) ) {
                 redirectCount += 1;
             }
-            if ( fctxt.redirectURL !== undefined && sfne.hasQuery(fctxt) ) {
-                if ( sfne.filterQuery(fctxt, 'removeparam') ) {
+            if ( sfne.hasQuery(fctxt) ) {
+                if ( sfne.filterQuery(fctxt) ) {
                     removeparamCount += 1;
                 }
             }
-            if ( fctxt.type === 'main_frame' || fctxt.type === 'sub_frame' ) {
+            if ( sfne.urlSkip(fctxt, false) ) {
+                urlskipCount += 1;
+            }
+            if ( fctxt.isDocument() ) {
                 if ( sfne.matchAndFetchModifiers(fctxt, 'csp') ) {
                     cspCount += 1;
                 }
@@ -198,13 +202,16 @@ export async function benchmarkStaticNetFiltering(options = {}) {
                     permissionsCount += 1;
                 }
             }
-            sfne.matchHeaders(fctxt, []);
+            sfne.matchHeaders(fctxt, [], []);
             if ( sfne.matchAndFetchModifiers(fctxt, 'replace') ) {
                 replaceCount += 1;
             }
         } else if ( redirectEngine !== undefined ) {
             if ( sfne.redirectRequest(redirectEngine, fctxt) ) {
                 redirectCount += 1;
+            }
+            if ( fctxt.isRootDocument() && sfne.urlSkip(fctxt, true) ) {
+                urlskipCount += 1;
             }
         }
     }
@@ -213,13 +220,14 @@ export async function benchmarkStaticNetFiltering(options = {}) {
 
     const output = [
         'Benchmarked static network filtering engine:',
-        `\tEvaluated ${matchCount} match calls in ${dur.toFixed(0)} ms`,
+        `\tEvaluated ${matchCount} requests in ${dur.toFixed(0)} ms`,
         `\tAverage: ${(dur / matchCount).toFixed(3)} ms per request`,
         `\tNot blocked: ${matchCount - blockCount - allowCount}`,
         `\tBlocked: ${blockCount}`,
         `\tUnblocked: ${allowCount}`,
         `\tredirect=: ${redirectCount}`,
         `\tremoveparam=: ${removeparamCount}`,
+        `\turlskip=: ${urlskipCount}`,
         `\tcsp=: ${cspCount}`,
         `\tpermissions=: ${permissionsCount}`,
         `\treplace=: ${replaceCount}`,
@@ -313,7 +321,6 @@ export async function benchmarkCosmeticFiltering() {
         frameId: undefined,
         hostname: '',
         domain: '',
-        entity: '',
     };
     const options = {
         noSpecificCosmeticFiltering: false,

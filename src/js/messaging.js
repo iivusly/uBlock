@@ -25,7 +25,6 @@ import * as sfp from './static-filtering-parser.js';
 import {
     domainFromHostname,
     domainFromURI,
-    entityFromDomain,
     hostnameFromURI,
     isNetworkURI,
 } from './uri-utils.js';
@@ -42,8 +41,8 @@ import {
 import cacheStorage from './cachestorage.js';
 import cosmeticFilteringEngine from './cosmetic-filtering.js';
 import { denseBase64 } from './base64-custom.js';
-import { dnrRulesetFromRawLists } from './static-dnr-filtering.js';
 import { filteringBehaviorChanged } from './broadcast.js';
+import { getTrustedTokens } from './trusted-tokens.js';
 import htmlFilteringEngine from './html-filtering.js';
 import { i18n$ } from './i18n.js';
 import io from './assets.js';
@@ -53,15 +52,12 @@ import publicSuffixList from '../lib/publicsuffixlist/publicsuffixlist.js';
 import punycode from '../lib/punycode.js';
 import { redirectEngine } from './redirect-engine.js';
 import scriptletFilteringEngine from './scriptlet-filtering.js';
-import staticFilteringReverseLookup from './reverselookup.js';
+import { staticFilteringReverseLookup } from './reverselookup.js';
 import staticNetFilteringEngine from './static-net-filtering.js';
 import webRequest from './traffic.js';
 import µb from './background.js';
 
 /******************************************************************************/
-
-const hasOwnProperty = (o, p) =>
-    Object.prototype.hasOwnProperty.call(o, p);
 
 // https://github.com/uBlockOrigin/uBlock-issues/issues/710
 //   Listeners have a name and a "privileged" status.
@@ -160,7 +156,7 @@ const onMessage = function(request, sender, callback) {
 
     case 'getAppData':
         response = {
-            name: browser.runtime.getManifest().name,
+            name: self.browser.runtime.getManifest().name,
             version: vAPI.app.version,
             canBenchmark: µb.hiddenSettings.benchmarkDatasetURL !== 'unset',
         };
@@ -170,8 +166,8 @@ const onMessage = function(request, sender, callback) {
         response = getDomainNames(request.targets);
         break;
 
-    case 'getTrustedScriptletTokens':
-        response = redirectEngine.getTrustedScriptletTokens();
+    case 'getTrustedTokens':
+        response = Array.from(getTrustedTokens());
         break;
 
     case 'getWhitelist':
@@ -288,9 +284,8 @@ const getHostnameDict = function(hostnameDetailsMap, out) {
     const cnMap = [];
 
     const createDictEntry = (domain, hostname, details) => {
-        const cname = vAPI.net.canonicalNameFromHostname(hostname);
-        if ( cname !== undefined ) {
-            cnMap.push([ cname, hostname ]);
+        if ( details.cname ) {
+            cnMap.push([ details.cname, hostname ]);
         }
         hnDict[hostname] = { domain, counts: details.counts };
     };
@@ -686,7 +681,7 @@ const retrieveContentScriptParameters = async function(sender, request) {
     request.frameId = frameId;
     request.hostname = hostnameFromURI(request.url);
     request.domain = domainFromHostname(request.hostname);
-    request.entity = entityFromDomain(request.domain);
+    request.ancestors = pageStore.getFrameAncestorDetails(frameId);
 
     const scf = response.specificCosmeticFilters =
         cosmeticFilteringEngine.retrieveSpecificSelectors(request, response);
@@ -806,6 +801,9 @@ const onMessage = function(request, sender, callback) {
 
     case 'shouldRenderNoscriptTags': {
         if ( pageStore === null ) { break; }
+        if ( µb.hiddenSettings.noScriptingCSP !== µb.hiddenSettingsDefault.noScriptingCSP ) {
+            break;
+        }
         const fctxt = µb.filteringContext.fromTabId(sender.tabId);
         if ( pageStore.filterScripting(fctxt, undefined) ) {
             vAPI.tabs.executeScript(sender.tabId, {
@@ -917,7 +915,7 @@ const fromBase64 = function(encoded) {
     let u8array;
     try {
         u8array = denseBase64.decode(encoded);
-    } catch(ex) {
+    } catch {
     }
     return Promise.resolve(u8array !== undefined ? u8array : encoded);
 };
@@ -1095,7 +1093,7 @@ const restoreUserData = async function(request) {
     // Discard unknown setting or setting with default value.
     for ( const key in hiddenSettings ) {
         if (
-            hasOwnProperty(µb.hiddenSettingsDefault, key) === false ||
+            Object.hasOwn(µb.hiddenSettingsDefault, key) === false ||
             hiddenSettings[key] === µb.hiddenSettingsDefault[key]
         ) {
             delete hiddenSettings[key];
@@ -1147,7 +1145,7 @@ const resetUserData = async function() {
 // Filter lists
 const prepListEntries = function(entries) {
     for ( const k in entries ) {
-        if ( hasOwnProperty(entries, k) === false ) { continue; }
+        if ( Object.hasOwn(entries, k) === false ) { continue; }
         const entry = entries[k];
         if ( typeof entry.supportURL === 'string' && entry.supportURL !== '' ) {
             entry.supportName = hostnameFromURI(entry.supportURL);
@@ -1335,7 +1333,7 @@ const getSupportData = async function() {
     let addedListset = {};
     let removedListset = {};
     for ( const listKey in lists ) {
-        if ( hasOwnProperty(lists, listKey) === false ) { continue; }
+        if ( Object.hasOwn(lists, listKey) === false ) { continue; }
         const list = lists[listKey];
         if ( list.content !== 'filters' ) { continue; }
         const used = µb.selectedFilterLists.includes(listKey);
@@ -1886,7 +1884,13 @@ const onMessage = function(request, sender, callback) {
             listPromises.push(
                 io.get(assetKey, { dontCache: true }).then(details => {
                     listNames.push(assetKey);
-                    return { name: assetKey, text: details.content };
+                    return {
+                        name: assetKey,
+                        text: details.content,
+                        trustedSource: assetKey.startsWith('ublock-') ||
+                            assetKey === µb.userFiltersPath &&
+                                µb.userSettings.userFiltersTrusted,
+                    };
                 })
             );
         }
@@ -1898,95 +1902,15 @@ const onMessage = function(request, sender, callback) {
             ),
             env: vAPI.webextFlavor.env,
         };
-        const t0 = Date.now();
-        dnrRulesetFromRawLists(listPromises, options).then(result => {
-            const { network } = result;
-            const replacer = (k, v) => {
-                if ( k.startsWith('__') ) { return; }
-                if ( Array.isArray(v) ) {
-                    return v.sort();
-                }
-                if ( v instanceof Object ) {
-                    const sorted = {};
-                    for ( const kk of Object.keys(v).sort() ) {
-                        sorted[kk] = v[kk];
-                    }
-                    return sorted;
-                }
-                return v;
-            };
-            const isUnsupported = rule =>
-                rule._error !== undefined;
-            const isRegex = rule =>
-                rule.condition !== undefined &&
-                rule.condition.regexFilter !== undefined;
-            const isRedirect = rule =>
-                rule.action !== undefined &&
-                rule.action.type === 'redirect' &&
-                rule.action.redirect.extensionPath !== undefined;
-            const isCsp = rule =>
-                rule.action !== undefined &&
-                rule.action.type === 'modifyHeaders';
-            const isRemoveparam = rule =>
-                rule.action !== undefined &&
-                rule.action.type === 'redirect' &&
-                rule.action.redirect.transform !== undefined;
-            const runtime = Date.now() - t0;
-            const { ruleset } = network;
-            const good = ruleset.filter(rule =>
-                isUnsupported(rule) === false &&
-                isRegex(rule) === false &&
-                isRedirect(rule) === false &&
-                isCsp(rule) === false &&
-                isRemoveparam(rule) === false
-            );
-            const unsupported = ruleset.filter(rule =>
-                isUnsupported(rule)
-            );
-            const regexes = ruleset.filter(rule =>
-                isUnsupported(rule) === false &&
-                isRegex(rule) &&
-                isRedirect(rule) === false &&
-                isCsp(rule) === false &&
-                isRemoveparam(rule) === false
-            );
-            const redirects = ruleset.filter(rule =>
-                isUnsupported(rule) === false &&
-                isRedirect(rule)
-            );
-            const headers = ruleset.filter(rule =>
-                isUnsupported(rule) === false &&
-                isCsp(rule)
-            );
-            const removeparams = ruleset.filter(rule =>
-                isUnsupported(rule) === false &&
-                isRemoveparam(rule)
-            );
-            const out = [
-                `dnrRulesetFromRawLists(${JSON.stringify(listNames, null, 2)})`,
-                `Run time: ${runtime} ms`,
-                `Filters count: ${network.filterCount}`,
-                `Accepted filter count: ${network.acceptedFilterCount}`,
-                `Rejected filter count: ${network.rejectedFilterCount}`,
-                `Un-DNR-able filter count: ${unsupported.length}`,
-                `Resulting DNR rule count: ${ruleset.length}`,
-            ];
-            out.push(`+ Good filters (${good.length}): ${JSON.stringify(good, replacer, 2)}`);
-            out.push(`+ Regex-based filters (${regexes.length}): ${JSON.stringify(regexes, replacer, 2)}`);
-            out.push(`+ 'redirect=' filters (${redirects.length}): ${JSON.stringify(redirects, replacer, 2)}`);
-            out.push(`+ 'csp=' filters (${headers.length}): ${JSON.stringify(headers, replacer, 2)}`);
-            out.push(`+ 'removeparam=' filters (${removeparams.length}): ${JSON.stringify(removeparams, replacer, 2)}`);
-            out.push(`+ Unsupported filters (${unsupported.length}): ${JSON.stringify(unsupported, replacer, 2)}`);
-            out.push(`+ generichide exclusions (${network.generichideExclusions.length}): ${JSON.stringify(network.generichideExclusions, replacer, 2)}`);
-            if ( result.specificCosmetic ) {
-                out.push(`+ Cosmetic filters: ${result.specificCosmetic.size}`);
-                for ( const details of result.specificCosmetic ) {
-                    out.push(`    ${JSON.stringify(details)}`);
-                }
-            } else {
-                out.push('  Cosmetic filters: 0');
-            }
-            callback(out.join('\n'));
+        import('./static-dnr-filtering.js').then(module => {
+            const t0 = Date.now();
+            module.dnrRulesetFromRawLists(listPromises, options).then(dnrdata => {
+                dnrdata.listNames = listNames;
+                dnrdata.runtime = Date.now() - t0;
+                callback(s14e.serialize(dnrdata));
+            })
+        }).catch(reason => {
+            callback(reason);
         });
         return;
     }
@@ -2091,7 +2015,7 @@ const logCSPViolations = function(pageStore, request) {
         fctxt.type = 'script';
         fctxt.filter = undefined;
         if ( pageStore.filterScripting(fctxt, true) === 1 ) {
-            cspData.set(µb.cspNoScripting, fctxt.filter);
+            cspData.set(µb.hiddenSettings.noScriptingCSP, fctxt.filter);
         }
     
         fctxt.type = 'inline-font';

@@ -21,16 +21,16 @@
 
 /******************************************************************************/
 
-function parsedURLromOrigin(origin) {
+export function parsedURLromOrigin(origin) {
     try {
         return new URL(origin);
-    } catch(ex) {
+    } catch {
     }
 }
 
 /******************************************************************************/
 
-const toBroaderHostname = hn => {
+export const toBroaderHostname = hn => {
     if ( hn === '*' ) { return ''; }
     const pos = hn.indexOf('.');
     return pos !== -1 ? hn.slice(pos+1) : '*';
@@ -40,14 +40,21 @@ const toBroaderHostname = hn => {
 
 // Is hna descendant hostname of hnb?
 
-const isDescendantHostname = (hna, hnb) => {
+export const isDescendantHostname = (hna, hnb) => {
     if ( hnb === 'all-urls' ) { return true; }
     if ( hna.endsWith(hnb) === false ) { return false; }
     if ( hna === hnb ) { return false; }
     return hna.charCodeAt(hna.length - hnb.length - 1) === 0x2E /* '.' */;
 };
 
-const isDescendantHostnameOfIter = (hna, iterb) => {
+/**
+ * Returns whether a hostname is part of a collection, or is descendant of an
+ * item in the collection.
+ * @param hna - the hostname representing the needle.
+ * @param iterb - an iterable representing the haystack of hostnames.
+ */
+
+export const isDescendantHostnameOfIter = (hna, iterb) => {
     const setb = iterb instanceof Set ? iterb : new Set(iterb);
     if ( setb.has('all-urls') || setb.has('*') ) { return true; }
     let hn = hna;
@@ -60,7 +67,14 @@ const isDescendantHostnameOfIter = (hna, iterb) => {
     return false;
 };
 
-const intersectHostnameIters = (itera, iterb) => {
+/**
+ * Returns all hostnames in the first collection which are equal or descendant
+ * of hostnames in the second collection.
+ * @param itera - an iterable which hostnames must be filtered out.
+ * @param iterb - an iterable which hostnames must be matched.
+ */
+
+export const intersectHostnameIters = (itera, iterb) => {
     const setb = iterb instanceof Set ? iterb : new Set(iterb);
     if ( setb.has('all-urls') || setb.has('*') ) { return Array.from(itera); }
     const out = [];
@@ -72,7 +86,7 @@ const intersectHostnameIters = (itera, iterb) => {
     return out;
 };
 
-const subtractHostnameIters = (itera, iterb) => {
+export const subtractHostnameIters = (itera, iterb) => {
     const setb = iterb instanceof Set ? iterb : new Set(iterb);
     if ( setb.has('all-urls') || setb.has('*') ) { return []; }
     const out = [];
@@ -86,29 +100,30 @@ const subtractHostnameIters = (itera, iterb) => {
 
 /******************************************************************************/
 
-const matchesFromHostnames = hostnames => {
+export const matchFromHostname = hn =>
+    hn === '*' || hn === 'all-urls' ? '<all_urls>' : `*://*.${hn}/*`;
+
+export const matchesFromHostnames = hostnames => {
     const out = [];
     for ( const hn of hostnames ) {
-        if ( hn === '*' || hn === 'all-urls' ) {
-            out.length = 0;
-            out.push('<all_urls>');
-            break;
-        }
-        out.push(`*://*.${hn}/*`);
+        out.push(matchFromHostname(hn));
     }
     return out;
 };
 
-const hostnamesFromMatches = origins => {
+export const hostnameFromMatch = origin => {
+    if ( origin === '<all_urls>' || origin === '*://*/*' ) { return 'all-urls'; }
+    const match = /^[^:]+:\/\/(?:\*\.)?([^/]+)\/\*/.exec(origin);
+    if ( match === null ) { return ''; }
+    return match[1];
+};
+
+export const hostnamesFromMatches = origins => {
     const out = [];
     for ( const origin of origins ) {
-        if ( origin === '<all_urls>' ) {
-            out.push('all-urls');
-            continue;
-        }
-        const match = /^\*:\/\/(?:\*\.)?([^/]+)\/\*/.exec(origin);
-        if ( match === null ) { continue; }
-        out.push(match[1]);
+        const hn = hostnameFromMatch(origin);
+        if ( hn === '' ) { continue; }
+        out.push(hn);
     }
     return out;
 };
@@ -122,13 +137,18 @@ export const broadcastMessage = message => {
 
 /******************************************************************************/
 
-export {
-    parsedURLromOrigin,
-    toBroaderHostname,
-    isDescendantHostname,
-    isDescendantHostnameOfIter,
-    intersectHostnameIters,
-    subtractHostnameIters,
-    matchesFromHostnames,
-    hostnamesFromMatches,
-};
+// The goal is just to be able to find out whether a specific version is older
+// than another one.
+
+export function intFromVersion(version) {
+    const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+    if ( match === null ) { return 0; }
+    const year = parseInt(match[1], 10);
+    const monthday = parseInt(match[2], 10);
+    const min = parseInt(match[3], 10);
+    return (year - 2022) * (1232 * 2400) + monthday * 2400 + min;
+}
+
+/******************************************************************************/
+
+export const isScriptlet = a => a.startsWith('+js');

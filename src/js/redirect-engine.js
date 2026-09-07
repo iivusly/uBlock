@@ -19,12 +19,8 @@
     Home: https://github.com/gorhill/uBlock
 */
 
-'use strict';
-
-/******************************************************************************/
-
-import redirectableResources from './redirect-resources.js';
 import { LineIterator, orphanizeString } from './text-utils.js';
+import redirectableResources from './redirect-resources.js';
 
 /******************************************************************************/
 
@@ -60,7 +56,7 @@ const mimeFromName = name => {
 };
 
 const removeTopCommentBlock = text => {
-    return text.replace(/^\/\*[\S\s]+?\n\*\/\s*/, '');
+    return text.replace(/^\/\*[\S\s]+?\*\/\s*/g, '');
 };
 
 // vAPI.warSecret is optional, it could be absent in some environments,
@@ -214,10 +210,12 @@ class RedirectEngine {
         const entry = this.resources.get(this.aliases.get(name) || name);
         if ( entry === undefined ) { return; }
         if ( entry.mime.startsWith(mime) === false ) { return; }
+        if ( entry.data === undefined ) { return; }
         return {
             js: entry.toContent(),
             world: entry.world,
             dependencies: entry.dependencies.slice(),
+            priority: entry.priority ?? 0,
         };
     }
 
@@ -316,7 +314,7 @@ class RedirectEngine {
         this.aliases = new Map();
 
         const fetches = [
-            import('/assets/resources/scriptlets.js').then(module => {
+            import('/js/resources/scriptlets.js').then(module => {
                 for ( const scriptlet of module.builtinScriptlets ) {
                     const details = {};
                     details.mime = mimeFromName(scriptlet.name);
@@ -333,6 +331,8 @@ class RedirectEngine {
                     }
                 }
                 this.modifyTime = Date.now();
+            }).catch(reason => {
+                console.error(reason);
             }),
         ];
 
@@ -406,7 +406,7 @@ class RedirectEngine {
         for ( const [ name, entry ] of this.resources ) {
             out.set(name, {
                 canInject: typeof entry.data === 'string',
-                canRedirect: entry.warURL !== undefined,
+                canRedirect: Boolean(entry.warURL ?? entry.data),
                 aliasOf: '',
                 extensionPath: entry.warURL,
             });
@@ -421,26 +421,6 @@ class RedirectEngine {
         return Array.from(out).sort((a, b) => {
             return a[0].localeCompare(b[0]);
         });
-    }
-
-    getTrustedScriptletTokens() {
-        const out = [];
-        const isTrustedScriptlet = entry => {
-            if ( entry.requiresTrust !== true ) { return false; }
-            if ( entry.warURL !== undefined ) { return false; }
-            if ( typeof entry.data !== 'string' ) { return false; }
-            if ( entry.name.endsWith('.js') === false ) { return false; }
-            return true;
-        };
-        for ( const [ name, entry ] of this.resources ) {
-            if ( isTrustedScriptlet(entry) === false ) { continue; }
-            out.push(name.slice(0, -3));
-        }
-        for ( const [ alias, name ] of this.aliases ) {
-            if ( out.includes(name.slice(0, -3)) === false ) { continue; }
-            out.push(alias.slice(0, -3));
-        }
-        return out;
     }
 
     selfieFromResources(storage) {
@@ -462,6 +442,7 @@ class RedirectEngine {
         for ( const [ token, entry ] of this.resources ) {
             this.resources.set(token, RedirectEntry.fromDetails(entry));
         }
+        this.modifyTime = Date.now();
         return true;
     }
 

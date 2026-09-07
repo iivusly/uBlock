@@ -220,7 +220,7 @@
     "description": "Tooltip when hovering the top-most cell of the global-rules column."
   },
   "popupTipLocalRules": {
-    "message": "Տեղական կանոններ. այս սյունակը նախատեսված է միայն այս կայքի վրա տարածվող կանոնների համար։\nՏեղական կանոնները վերասահմանում են համընդհանուր կանոնները։",
+    "message": "Տեղական կանոններ. այս սյունակը նախատեսված է միայն այս կայքի վրա տարածվող կանոնների համար։",
     "description": "Tooltip when hovering the top-most cell of the local-rules column."
   },
   "popupTipSaveRules": {
@@ -480,7 +480,7 @@
     "description": "Filter lists section name"
   },
   "3pGroupMalware": {
-    "message": "Վնասակար տիրույթներ",
+    "message": "Վնասակար ծրագրերից պաշտպանություն, անվտանգություն",
     "description": "Filter lists section name"
   },
   "3pGroupSocial": {
@@ -897,14 +897,14 @@
   },
   "supportOpenButton": {
     "message": "Բացել",
-    "description": "Text for button which open an external webpage in Support pane"
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportReportSpecificButton": {
-    "message": "Նոր զեկույց ստեղծել",
-    "description": "Text for button which open an external webpage in Support pane"
+    "message": "Նոր զեկույց ստեղծել GitHub-ում",
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportFindSpecificButton": {
-    "message": "Գտնել նման զեկույցներ",
+    "message": "Գտնել նման զեկույցներ GitHub-ում",
     "description": "A clickable link in the filter issue reporter section"
   },
   "supportS1H": {
@@ -954,10 +954,6 @@
   "supportS5P1": {
     "message": "Ցածում տեխնիկական տեղեկություն է, որը կարող է օգտակար լինել, երբ կամավորները փորձում են օգնել Ձեզ լուծել խնդիրը։",
     "description": "First paragraph of 'Troubleshooting Information' section in Support pane"
-  },
-  "supportS5P2": {
-    "message": "<b>Կարևոր է.</b> Հնարավոր անձնական կամ զգայուն տեղեկությունները խմբագրվում է լռելյայնորեն։ Վերամշակված տեղեկություները կարող է ավելի բարդացնել խնդրի լուծումը:",
-    "description": "Second paragraph of 'Troubleshooting Information' section in Support pane"
   },
   "supportS6H": {
     "message": "Հաղորդել զտիչի խնդրի մասին",
@@ -1011,17 +1007,13 @@
     "message": "Բացում է անցանկալի ներդիրները կամ լուսամուտները",
     "description": "An entry in the widget used to select the type of issue"
   },
+  "supportS6Select1Option7": {
+    "message": "Բերում է վնասակար ծրագրերի, ֆիշինգի",
+    "description": "An entry in the widget used to select the type of issue"
+  },
   "supportS6Checkbox1": {
     "message": "Նշել վեբ էջը որպես «NSFW» (<a href=\"https://wikipedia.org/wiki/Not_safe_for_work\">«Աշխատանքի համար անվտանգ չէ»</a>)",
     "description": "A checkbox to use for NSFW sites"
-  },
-  "supportRedact": {
-    "message": "Խմբագրել",
-    "description": "Text for 'Redact' button"
-  },
-  "supportUnredact": {
-    "message": "Չեղարկել խմբագրումը",
-    "description": "Text for 'Unredact' button"
   },
   "aboutPrivacyPolicy": {
     "message": "Գաղտնիության քաղաքականություն",
@@ -1094,10 +1086,6 @@
   "errorCantConnectTo": {
     "message": "Ցանցի սխալ՝ {{msg}}",
     "description": "English: Network error: {{msg}}"
-  },
-  "subscriberConfirm": {
-    "message": "Ավելացնե՞լ հետևյալ հասցեն զտիչների օգտվողային ցանկին։\n\nՎերնագիր՝ «{{title}}»\nURL՝ {{url}}",
-    "description": "No longer used"
   },
   "subscribeButton": {
     "message": "Բաժանորդագրվել",
@@ -1186,6 +1174,26 @@
   "docblockedDisable": {
     "message": "Շարունակել",
     "description": "Button text to navigate to the blocked page"
+  },
+  "docblockedRedirectPrompt": {
+    "message": "Արգելափակված կայքը ցանկանում է  տեղափոխել Ձեզ ուրիշ կայք։ Եթե ցանկանում եք շարունակել, Դուք անմիջապես կտեղափոխվեք {{url}}",
+    "description": "Text warning about an incoming redirect"
+  },
+  "docblockedReasonLabel": {
+    "message": "Պատճառը՝",
+    "description": "The label which prepend the actual reason why a page was blocked"
+  },
+  "docblockedReasonMalicious": {
+    "message": "Վնասակար",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonTracker": {
+    "message": "Հետևող",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonDisreputable": {
+    "message": "Անվստահելի",
+    "description": "An actual reason why a page was blocked"
   },
   "cloudPush": {
     "message": "Արտահանել առ ամպային պահեստ",

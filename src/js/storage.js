@@ -35,6 +35,7 @@ import {
 import { ubolog, ubologSet } from './console.js';
 
 import cosmeticFilteringEngine from './cosmetic-filtering.js';
+import { getTrustedTokens } from './trusted-tokens.js';
 import { hostnameFromURI } from './uri-utils.js';
 import io from './assets.js';
 import logger from './logger.js';
@@ -42,15 +43,9 @@ import publicSuffixList from '../lib/publicsuffixlist/publicsuffixlist.js';
 import punycode from '../lib/punycode.js';
 import { redirectEngine } from './redirect-engine.js';
 import staticExtFilteringEngine from './static-ext-filtering.js';
-import staticFilteringReverseLookup from './reverselookup.js';
+import { staticFilteringReverseLookup } from './reverselookup.js';
 import staticNetFilteringEngine from './static-net-filtering.js';
 import µb from './background.js';
-
-/******************************************************************************/
-
-// https://eslint.org/docs/latest/rules/no-prototype-builtins
-const hasOwnProperty = (o, p) =>
-    Object.prototype.hasOwnProperty.call(o, p);
 
 /******************************************************************************/
 
@@ -186,7 +181,7 @@ const hasOwnProperty = (o, p) =>
         for ( const entry of adminSettings ) {
             if ( entry.length < 1 ) { continue; }
             const name = entry[0];
-            if ( hasOwnProperty(usDefault, name) === false ) { continue; }
+            if ( Object.hasOwn(usDefault, name) === false ) { continue; }
             const value = entry.length < 2
                 ? usDefault[name]
                 : this.settingValueFromString(usDefault, name, entry[1]);
@@ -215,8 +210,8 @@ const hasOwnProperty = (o, p) =>
 
     const toRemove = [];
     for ( const key in this.userSettings ) {
-        if ( hasOwnProperty(this.userSettings, key) === false ) { continue; }
-        if ( hasOwnProperty(toSave, key) ) { continue; }
+        if ( Object.hasOwn(this.userSettings, key) === false ) { continue; }
+        if ( Object.hasOwn(toSave, key) ) { continue; }
         toRemove.push(key);
     }
     if ( toRemove.length !== 0 ) {
@@ -253,7 +248,7 @@ const hasOwnProperty = (o, p) =>
             for ( const entry of advancedSettings ) {
                 if ( entry.length < 1 ) { continue; }
                 const name = entry[0];
-                if ( hasOwnProperty(hsDefault, name) === false ) { continue; }
+                if ( Object.hasOwn(hsDefault, name) === false ) { continue; }
                 const value = entry.length < 2
                     ? hsDefault[name]
                     : this.hiddenSettingValueFromString(name, entry[1]);
@@ -287,8 +282,8 @@ const hasOwnProperty = (o, p) =>
     }
 
     for ( const key in hsDefault ) {
-        if ( hasOwnProperty(hsDefault, key) === false ) { continue; }
-        if ( hasOwnProperty(hsAdmin, name) ) { continue; }
+        if ( Object.hasOwn(hsDefault, key) === false ) { continue; }
+        if ( Object.hasOwn(hsAdmin, name) ) { continue; }
         if ( typeof hs[key] !== typeof hsDefault[key] ) { continue; }
         this.hiddenSettings[key] = hs[key];
     }
@@ -319,7 +314,8 @@ onBroadcast(msg => {
         cnameIgnoreRootDocument: µbhs.cnameIgnoreRootDocument,
         cnameMaxTTL: µbhs.cnameMaxTTL,
         cnameReplayFullURL: µbhs.cnameReplayFullURL,
-        cnameUncloakProxied: µbhs.cnameUncloakProxied,
+        dnsCacheTTL: µbhs.dnsCacheTTL,
+        dnsResolveEnabled: µbhs.dnsResolveEnabled,
     });
 });
 
@@ -333,8 +329,8 @@ onBroadcast(msg => {
         const matches = /^\s*(\S+)\s+(.+)$/.exec(line);
         if ( matches === null || matches.length !== 3 ) { continue; }
         const name = matches[1];
-        if ( hasOwnProperty(out, name) === false ) { continue; }
-        if ( hasOwnProperty(this.hiddenSettingsAdmin, name) ) { continue; }
+        if ( Object.hasOwn(out, name) === false ) { continue; }
+        if ( Object.hasOwn(this.hiddenSettingsAdmin, name) ) { continue; }
         const value = this.hiddenSettingValueFromString(name, matches[2]);
         if ( value !== undefined ) {
             out[name] = value;
@@ -346,7 +342,7 @@ onBroadcast(msg => {
 µb.hiddenSettingValueFromString = function(name, value) {
     if ( typeof name !== 'string' || typeof value !== 'string' ) { return; }
     const hsDefault = this.hiddenSettingsDefault;
-    if ( hasOwnProperty(hsDefault, name) === false ) { return; }
+    if ( Object.hasOwn(hsDefault, name) === false ) { return; }
     let r;
     switch ( typeof hsDefault[name] ) {
     case 'boolean':
@@ -434,11 +430,14 @@ onBroadcast(msg => {
                 try {
                     const url = new URL(prefix);
                     if ( url.hostname.length > 0 ) { return url.href; }
-                } catch(_) {
+                } catch {
                 }
             }).filter(prefix => prefix !== undefined);
     }
+    const match = /^[a-z-]+:\/\/[^/]+\//.exec(assetKey);
+    const assetOrigin = match && match[0];
     for ( const prefix of this.parsedTrustedListPrefixes ) {
+        if ( assetOrigin && prefix.length < assetOrigin.length ) { continue; }
         if ( assetKey.startsWith(prefix) ) { return true; }
     }
     return false;
@@ -687,7 +686,7 @@ onBroadcast(msg => {
 µb.autoSelectRegionalFilterLists = function(lists) {
     const selectedListKeys = [ this.userFiltersPath ];
     for ( const key in lists ) {
-        if ( hasOwnProperty(lists, key) === false ) { continue; }
+        if ( Object.hasOwn(lists, key) === false ) { continue; }
         const list = lists[key];
         if ( list.content !== 'filters' ) { continue; }
         if ( list.off !== true ) {
@@ -940,7 +939,7 @@ onBroadcast(msg => {
         let acceptedCount = snfe.acceptedCount + sxfe.acceptedCount;
         let discardedCount = snfe.discardedCount + sxfe.discardedCount;
         µb.applyCompiledFilters(compiled, assetKey === µb.userFiltersPath);
-        if ( hasOwnProperty(µb.availableFilterLists, assetKey) ) {
+        if ( Object.hasOwn(µb.availableFilterLists, assetKey) ) {
             const entry = µb.availableFilterLists[assetKey];
             entry.entryCount = snfe.acceptedCount + sxfe.acceptedCount -
                 acceptedCount;
@@ -962,7 +961,6 @@ onBroadcast(msg => {
         if ( vAPI.Net.canSuspend() ) {
             vAPI.net.suspend();
         }
-        redirectEngine.reset();
         staticExtFilteringEngine.reset();
         staticNetFilteringEngine.reset();
         µb.selfieManager.destroy();
@@ -976,7 +974,7 @@ onBroadcast(msg => {
         // content.
         const toLoad = [];
         for ( const assetKey in lists ) {
-            if ( hasOwnProperty(lists, assetKey) === false ) { continue; }
+            if ( Object.hasOwn(lists, assetKey) === false ) { continue; }
             if ( lists[assetKey].off ) { continue; }
             toLoad.push(
                 µb.getCompiledFilterList(assetKey).then(details => {
@@ -1109,16 +1107,16 @@ onBroadcast(msg => {
 
     // Populate the writer with information potentially useful to the
     // client compilers.
-    const trustedSource = details.trustedSource === true;
     if ( details.assetKey ) {
         writer.properties.set('name', details.assetKey);
-        writer.properties.set('trustedSource', trustedSource);
     }
     const assetName = details.assetKey ? details.assetKey : '?';
     const parser = new sfp.AstFilterParser({
-        trustedSource,
+        trustedSource: details.trustedSource === true,
         maxTokenLength: staticNetFilteringEngine.MAX_TOKEN_LENGTH,
         nativeCssHas: vAPI.webextFlavor.env.includes('native_css_has'),
+        canFilterResponseBody: µb.canFilterResponseData,
+        trustedTokens: getTrustedTokens(),
     });
     const compiler = staticNetFilteringEngine.createCompiler(parser);
     const lineIter = new LineIterator(
@@ -1427,8 +1425,8 @@ onBroadcast(msg => {
         const µbus = this.userSettings;
         const adminus = data.userSettings;
         for ( const name in µbus ) {
-            if ( hasOwnProperty(µbus, name) === false ) { continue; }
-            if ( hasOwnProperty(adminus, name) === false ) { continue; }
+            if ( Object.hasOwn(µbus, name) === false ) { continue; }
+            if ( Object.hasOwn(adminus, name) === false ) { continue; }
             bin[name] = adminus[name];
             binNotEmpty = true;
         }
@@ -1599,7 +1597,7 @@ onBroadcast(msg => {
     if ( topic === 'before-asset-updated' ) {
         if ( details.type === 'filters' ) {
             if (
-                hasOwnProperty(this.availableFilterLists, details.assetKey) === false ||
+                Object.hasOwn(this.availableFilterLists, details.assetKey) === false ||
                 this.selectedFilterLists.indexOf(details.assetKey) === -1 ||
                 this.badLists.get(details.assetKey)
             ) {
@@ -1614,7 +1612,7 @@ onBroadcast(msg => {
         // Skip selfie-related content.
         if ( details.assetKey.startsWith('selfie/') ) { return; }
         const cached = typeof details.content === 'string' && details.content !== '';
-        if ( hasOwnProperty(this.availableFilterLists, details.assetKey) ) {
+        if ( Object.hasOwn(this.availableFilterLists, details.assetKey) ) {
             if ( cached ) {
                 if ( this.selectedFilterLists.indexOf(details.assetKey) !== -1 ) {
                     this.extractFilterListMetadata(

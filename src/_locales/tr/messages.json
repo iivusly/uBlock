@@ -220,7 +220,7 @@
     "description": "Tooltip when hovering the top-most cell of the global-rules column."
   },
   "popupTipLocalRules": {
-    "message": "Yerel kurallar: bu sütun yalnızca geçerli siteye uygulanan kurallar içindir.\nYerel kurallar genel kuralları geçersiz kılar.",
+    "message": "Yerel kurallar: Bu sütun yalnızca geçerli siteye uygulanan kurallar içindir.",
     "description": "Tooltip when hovering the top-most cell of the local-rules column."
   },
   "popupTipSaveRules": {
@@ -632,7 +632,7 @@
     "description": "A concise description of the 'Trusted sites' pane."
   },
   "whitelistImport": {
-    "message": "İçe aktar ve ekle",
+    "message": "İçe aktar ve ekle…",
     "description": "Button in the 'Trusted sites' pane"
   },
   "whitelistExport": {
@@ -897,14 +897,14 @@
   },
   "supportOpenButton": {
     "message": "Aç",
-    "description": "Text for button which open an external webpage in Support pane"
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportReportSpecificButton": {
-    "message": "Yeni rapor oluştur",
-    "description": "Text for button which open an external webpage in Support pane"
+    "message": "GitHub'da yeni rapor oluştur",
+    "description": "Text for button which open an external web page in Support pane"
   },
   "supportFindSpecificButton": {
-    "message": "Benzer raporları bul",
+    "message": "GitHub'da benzer raporları bul",
     "description": "A clickable link in the filter issue reporter section"
   },
   "supportS1H": {
@@ -955,16 +955,12 @@
     "message": "Aşağıdaki, gönüllüler size bir sorunu çözmede yardım etmeye çalışırken, faydalı olabilecek teknik bilgidir.",
     "description": "First paragraph of 'Troubleshooting Information' section in Support pane"
   },
-  "supportS5P2": {
-    "message": "<b>Önemli:</b> Olası gizli ve hassas bilgiler öntanımlı olarak kısaltılır. Kısaltılmış bilgiler bir sorunu çözmeyi zorlaştırabilir.",
-    "description": "Second paragraph of 'Troubleshooting Information' section in Support pane"
-  },
   "supportS6H": {
     "message": "Bir filtre sorunu bildirin",
     "description": "Header of 'Report a filter issue' section in Support pane"
   },
   "supportS6P1S1": {
-    "message": "Gönüllülere aynı raporlarla sıkıntı vermemek için, lütfen sorunun daha önce bildirilmediğinden emin olun.",
+    "message": "Gönüllüleri yinelenen bildirimlerle meşgul etmemek için lütfen sorunun daha önce bildirilip bildirilmediğini kontrol edin.\n<b>Not:</b> Butona tıklamak, sayfanın kaynağının GitHub'a gönderilmesine neden olacaktır.",
     "description": "A paragraph in the filter issue reporter section"
   },
   "supportS6P2S1": {
@@ -1011,17 +1007,13 @@
     "message": "İstenmeyen sekme veya pencereler açıyor",
     "description": "An entry in the widget used to select the type of issue"
   },
+  "supportS6Select1Option7": {
+    "message": "Kötü niyetli yazılıma yönlendiriyor, oltalama",
+    "description": "An entry in the widget used to select the type of issue"
+  },
   "supportS6Checkbox1": {
     "message": "Web sayfasını uygunsuz (“NSFW”) olarak etiketle (<a href=\"https://wikipedia.org/wiki/Not_safe_for_work\">“Not Safe For Work”</a>)",
     "description": "A checkbox to use for NSFW sites"
-  },
-  "supportRedact": {
-    "message": "Kısalt",
-    "description": "Text for 'Redact' button"
-  },
-  "supportUnredact": {
-    "message": "Kısaltma",
-    "description": "Text for 'Unredact' button"
   },
   "aboutPrivacyPolicy": {
     "message": "Gizlilik ilkesi",
@@ -1094,10 +1086,6 @@
   "errorCantConnectTo": {
     "message": "Ağ hatası: {{msg}}",
     "description": "English: Network error: {{msg}}"
-  },
-  "subscriberConfirm": {
-    "message": "Bu URL, özel filtre listenize eklensin mi?\n\nBaşlık: \"{{title}}\"\nURL: {{url}}",
-    "description": "No longer used"
   },
   "subscribeButton": {
     "message": "Abone ol",
@@ -1187,6 +1175,26 @@
     "message": "Devam et",
     "description": "Button text to navigate to the blocked page"
   },
+  "docblockedRedirectPrompt": {
+    "message": "Engellenen sayfa sizi başka bir siteye yönlendirmek istiyor. Devam etmek isterseniz doğrudan şuraya yönlendirileceksiniz: {{url}}",
+    "description": "Text warning about an incoming redirect"
+  },
+  "docblockedReasonLabel": {
+    "message": "Sebep:",
+    "description": "The label which prepend the actual reason why a page was blocked"
+  },
+  "docblockedReasonMalicious": {
+    "message": "Kötü niyetli",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonTracker": {
+    "message": "İzleyici",
+    "description": "An actual reason why a page was blocked"
+  },
+  "docblockedReasonDisreputable": {
+    "message": "Güvenilmez",
+    "description": "An actual reason why a page was blocked"
+  },
   "cloudPush": {
     "message": "Bulut depolamaya aktar",
     "description": "tooltip"
@@ -1264,7 +1272,7 @@
     "description": "Label for keyboard shortcut used to toggle cosmetic filtering"
   },
   "toggleJavascript": {
-    "message": "JavaScript'i Aç/Kapa",
+    "message": "JavaScript'i Aç/Kapat",
     "description": "Label for keyboard shortcut used to toggle no-scripting switch"
   },
   "relaxBlockingMode": {

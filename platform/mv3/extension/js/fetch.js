@@ -19,20 +19,14 @@
     Home: https://github.com/gorhill/uBlock
 */
 
-/* jshint esversion:11 */
-
-'use strict';
+import { ubolErr } from './debug.js';
 
 /******************************************************************************/
 
-function fetchJSON(path) {
+export function fetchJSON(path) {
     return fetch(`${path}.json`).then(response =>
         response.json()
     ).catch(reason => {
-        console.info(reason);
+        ubolErr(`fetchJSON/${reason}`);
     });
 }
-
-/******************************************************************************/
-
-export { fetchJSON };

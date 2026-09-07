@@ -19,8 +19,6 @@
     Home: https://github.com/gorhill/uBlock
 */
 
-'use strict';
-
 /******************************************************************************/
 
 const i18n =
@@ -168,14 +166,14 @@ if ( isBackgroundProcess !== true ) {
         const re = /\{\{\w+\}\}/g;
         let textout = '';
         for (;;) {
-            let match = re.exec(textin);
+            const match = re.exec(textin);
             if ( match === null ) {
                 textout += textin;
                 break;
             }
             textout += textin.slice(0, match.index);
             let prop = match[0].slice(2, -2);
-            if ( dict.hasOwnProperty(prop) ) {
+            if ( Object.hasOwn(dict, prop) ) {
                 textout += dict[prop].replace(/</g, '&lt;')
                                      .replace(/>/g, '&gt;');
             } else {
@@ -250,6 +248,12 @@ if ( isBackgroundProcess !== true ) {
             elem.setAttribute('title', expandHtmlEntities(text));
         }
 
+        for ( const elem of root.querySelectorAll('[aria-label]') ) {
+            const text = i18n$(elem.getAttribute('aria-label'));
+            if ( !text ) { continue; }
+            elem.setAttribute('aria-label', expandHtmlEntities(text));
+        }
+
         for ( const elem of root.querySelectorAll('[placeholder]') ) {
             const text = i18n$(elem.getAttribute('placeholder'));
             if ( text === '' ) { continue; }
@@ -264,6 +268,11 @@ if ( isBackgroundProcess !== true ) {
             if ( elem.getAttribute('aria-label') === 'data-tip' ) {
                 elem.setAttribute('aria-label', text);
             }
+        }
+
+        for ( const elem of root.querySelectorAll('[data-i18n-label]') ) {
+            const text = i18n$(elem.getAttribute('data-i18n-label'));
+            elem.setAttribute('label', text);
         }
     };
 

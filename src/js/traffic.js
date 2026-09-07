@@ -39,20 +39,8 @@ import µb from './background.js';
 
 /******************************************************************************/
 
-// Platform-specific behavior.
-
-// https://github.com/uBlockOrigin/uBlock-issues/issues/42
-// https://bugzilla.mozilla.org/show_bug.cgi?id=1376932
-//   Add proper version number detection once issue is fixed in Firefox.
-let dontCacheResponseHeaders =
-    vAPI.webextFlavor.soup.has('firefox');
-
-// The real actual webextFlavor value may not be set in stone, so listen
-// for possible future changes.
-window.addEventListener('webextFlavor', function() {
-    dontCacheResponseHeaders =
-        vAPI.webextFlavor.soup.has('firefox');
-}, { once: true });
+// For platform-specific behavior.
+const isGecko = vAPI.webextFlavor.isGecko;
 
 /******************************************************************************/
 
@@ -64,7 +52,7 @@ const patchLocalRedirectURL = url => url.charCodeAt(0) === 0x2F /* '/' */
 
 // Intercept and filter web requests.
 
-const onBeforeRequest = function(details) {
+function onBeforeRequest(details) {
     const fctxt = µb.filteringContext.fromWebrequestDetails(details);
 
     // Special handling for root document.
@@ -129,7 +117,7 @@ const onBeforeRequest = function(details) {
 
 /******************************************************************************/
 
-const onBeforeRootFrameRequest = function(fctxt) {
+function onBeforeRootFrameRequest(fctxt) {
     const requestURL = fctxt.url;
 
     // Special handling for root document.
@@ -188,17 +176,21 @@ const onBeforeRootFrameRequest = function(fctxt) {
     }
 
     if ( logger.enabled ) {
-        fctxt.setFilter(logData);
+        fctxt.setRealm('network').setFilter(logData);
     }
 
     // https://github.com/uBlockOrigin/uBlock-issues/issues/760
     //   Redirect non-blocked request?
-    if ( result !== 1 && trusted === false && pageStore !== null ) {
-        pageStore.redirectNonBlockedRequest(fctxt);
+    if ( trusted === false && pageStore !== null ) {
+        if ( result !== 1 ) {
+            pageStore.redirectNonBlockedRequest(fctxt);
+        } else {
+            pageStore.skipMainDocument(fctxt, true);
+        }
     }
 
     if ( logger.enabled ) {
-        fctxt.setRealm('network').toLogger();
+        fctxt.toLogger();
     }
 
     // Redirected
@@ -212,25 +204,39 @@ const onBeforeRootFrameRequest = function(fctxt) {
     if ( result !== 1 ) { return; }
 
     // No log data means no strict blocking (because we need to report why
-    // the blocking occurs.
+    // the blocking occurs
     if ( logData === undefined  ) { return; }
 
     // Blocked
 
-    const query = encodeURIComponent(JSON.stringify({
+    let reason = logData.reason;
+
+    // Find out the URL navigated to should the document not be strict-blocked
+    pageStore.skipMainDocument(fctxt, false);
+
+    if ( reason === undefined && Array.isArray(fctxt.filter) ) {
+        const filter = fctxt.filter.find(a => a.reason !== undefined);
+        reason = filter?.reason;
+    }
+
+    const query = {
         url: requestURL,
-        hn: requestHostname,
         dn: fctxt.getDomain() || requestHostname,
-        fs: logData.raw
-    }));
+        fs: logData.raw,
+        hn: requestHostname,
+        to: fctxt.redirectURL || '',
+    };
+    if ( reason ) {
+        query.reason = reason;
+    }
 
     vAPI.tabs.replace(
         fctxt.tabId,
-        vAPI.getURL('document-blocked.html?details=') + query
+        `${vAPI.getURL('document-blocked.html?details=')}${encodeURIComponent(JSON.stringify(query))}`
     );
 
     return { cancel: true };
-};
+}
 
 /******************************************************************************/
 
@@ -260,7 +266,7 @@ const onBeforeRootFrameRequest = function(fctxt) {
 //         |   2    |   rg   |   rg   |   rs   |   rs   |
 // --------+--------+--------+--------+--------+--------+
 
-const shouldStrictBlock = function(fctxt, loggerEnabled) {
+function shouldStrictBlock(fctxt, loggerEnabled) {
     const snfe = staticNetFilteringEngine;
 
     // Explicit filtering: `document` option
@@ -320,7 +326,7 @@ const shouldStrictBlock = function(fctxt, loggerEnabled) {
     //         |   2    |   -    |   -    |   -    |   x    |
     // --------+--------+--------+--------+--------+--------+
     return { result: rs, logData: lds };
-};
+}
 
 /******************************************************************************/
 
@@ -330,7 +336,7 @@ const shouldStrictBlock = function(fctxt, loggerEnabled) {
 //   Do not strict-block if the filter pattern does not contain at least one
 //   token character.
 
-const validateStrictBlock = function(fctxt, logData) {
+function validateStrictBlock(fctxt, logData) {
     if ( typeof logData.regex !== 'string' ) { return false; }
     if ( typeof logData.raw === 'string' && /\w/.test(logData.raw) === false ) {
         return false;
@@ -352,13 +358,13 @@ const validateStrictBlock = function(fctxt, logData) {
     const end = match.index + match[0].length - hnpos - hnlen;
     return end === 0 || end === 1 ||
            end === 2 && url.charCodeAt(hnpos + hnlen) === 0x2E /* '.' */;
-};
+}
 
 /******************************************************************************/
 
 // Intercept and filter behind-the-scene requests.
 
-const onBeforeBehindTheSceneRequest = function(fctxt) {
+function onBeforeBehindTheSceneRequest(fctxt) {
     const pageStore = µb.pageStoreFromTabId(fctxt.tabId);
     if ( pageStore === null ) { return; }
 
@@ -418,7 +424,7 @@ const onBeforeBehindTheSceneRequest = function(fctxt) {
     if ( result === 1 ) {
         return { cancel: true };
     }
-};
+}
 
 // https://github.com/uBlockOrigin/uBlock-issues/issues/1204
 //   Report the tabless network requests to all page stores matching the
@@ -473,7 +479,7 @@ const onBeforeBehindTheSceneRequest = function(fctxt) {
 // - HTML filtering (requires ability to modify response body)
 // - CSP injection
 
-const onHeadersReceived = function(details) {
+function onHeadersReceived(details) {
 
     const fctxt = µb.filteringContext.fromWebrequestDetails(details);
     const isRootDoc = fctxt.itype === fctxt.MAIN_FRAME;
@@ -485,7 +491,13 @@ const onHeadersReceived = function(details) {
     }
     if ( pageStore.getNetFilteringSwitch(fctxt) === false ) { return; }
 
-    if ( fctxt.itype === fctxt.IMAGE || fctxt.itype === fctxt.MEDIA ) {
+    // To enforce strict-blocking with ipaddress option
+    if ( isRootDoc && fctxt.ipaddress ) {
+        const r = onBeforeRootFrameRequest(fctxt);
+        if ( r ) { return ( r ); }
+    }
+
+    if ( (fctxt.itype & foilLargeMediaElement.TYPE_BITS) !== 0 ) {
         const result = foilLargeMediaElement(details, fctxt, pageStore);
         if ( result !== undefined ) { return result; }
     }
@@ -497,7 +509,10 @@ const onHeadersReceived = function(details) {
     if ( Array.isArray(responseHeaders) === false ) { return; }
 
     if ( isRootDoc === false ) {
-        const result = pageStore.filterOnHeaders(fctxt, responseHeaders);
+        const result = pageStore.filterOnHeaders(fctxt,
+            responseHeaders,
+            requestHeadersManager.lookup(details)
+        );
         if ( result !== 0 ) {
             if ( logger.enabled ) {
                 fctxt.setRealm('network').toLogger();
@@ -571,7 +586,7 @@ const onHeadersReceived = function(details) {
     // https://github.com/uBlockOrigin/uBlock-issues/issues/229
     //   Use `no-cache` instead of `no-cache, no-store, must-revalidate`, this
     //   allows Firefox's offline mode to work as expected.
-    if ( modifiedHeaders && dontCacheResponseHeaders ) {
+    if ( modifiedHeaders && isGecko ) {
         const cacheControl = µb.hiddenSettings.cacheControlForFirefox1376932;
         if ( cacheControl !== 'unset' ) {
             let i = headerIndexFromName('cache-control', responseHeaders);
@@ -587,7 +602,7 @@ const onHeadersReceived = function(details) {
     if ( modifiedHeaders ) {
         return { responseHeaders };
     }
-};
+}
 
 const reMediaContentTypes = /^(?:audio|image|video)\/|(?:\/ogg)$/;
 
@@ -617,19 +632,62 @@ function textResponseFilterer(session, directives) {
             continue;
         }
         const { refs } = directive;
+        if ( refs.$cache !== null ) {
+            const { jsonp } = refs.$cache;
+            if ( jsonp && jsonp.apply === undefined ) {
+                refs.$cache = null;
+            }
+        }
         if ( refs.$cache === null ) {
             refs.$cache = sfp.parseReplaceValue(refs.value);
         }
         const cache = refs.$cache;
         if ( cache === undefined ) { continue; }
-        cache.re.lastIndex = 0;
-        if ( cache.re.test(session.getString()) !== true ) { continue; }
-        cache.re.lastIndex = 0;
-        session.setString(session.getString().replace(
-            cache.re,
-            cache.replacement
-        ));
-        applied.push(directive);
+        switch ( cache.type ) {
+        case 'json': {
+            const json = session.getString();
+            let obj;
+            try { obj = JSON.parse(json); } catch { break; }
+            const objAfter = cache.jsonp.apply(obj);
+            if ( objAfter === undefined ) { break; }
+            session.setString(cache.jsonp.toJSON(objAfter));
+            applied.push(directive);
+            break;
+        }
+        case 'jsonl': {
+            const linesBefore = session.getString().split(/\n+/);
+            const linesAfter = [];
+            for ( const lineBefore of linesBefore ) {
+                let obj;
+                try { obj = JSON.parse(lineBefore); } catch { }
+                if ( typeof obj !== 'object' || obj === null ) {
+                    linesAfter.push(lineBefore);
+                    continue;
+                }
+                const objAfter = cache.jsonp.apply(obj);
+                if ( objAfter === undefined ) {
+                    linesAfter.push(lineBefore);
+                    continue;
+                }
+                linesAfter.push(cache.jsonp.toJSON(objAfter));
+            }
+            session.setString(linesAfter.join('\n'));
+            break;
+        }
+        case 'text': {
+            cache.re.lastIndex = 0;
+            if ( cache.re.test(session.getString()) !== true ) { break; }
+            cache.re.lastIndex = 0;
+            session.setString(session.getString().replace(
+                cache.re,
+                cache.replacement
+            ));
+            applied.push(directive);
+            break;
+        }
+        default:
+            break;
+        }
     }
     if ( applied.length === 0 ) { return; }
     if ( logger.enabled !== true ) { return; }
@@ -950,7 +1008,7 @@ const bodyFilterer = (( ) => {
 
 /******************************************************************************/
 
-const injectCSP = function(fctxt, pageStore, responseHeaders) {
+function injectCSP(fctxt, pageStore, responseHeaders) {
     const cspSubsets = [];
     const requestType = fctxt.type;
 
@@ -961,7 +1019,7 @@ const injectCSP = function(fctxt, pageStore, responseHeaders) {
     const builtinDirectives = [];
 
     if ( pageStore.filterScripting(fctxt, true) === 1 ) {
-        builtinDirectives.push(µb.cspNoScripting);
+        builtinDirectives.push(µb.hiddenSettings.noScriptingCSP);
         if ( logger.enabled ) {
             fctxt.setRealm('network').setType('scripting').toLogger();
         }
@@ -1077,11 +1135,11 @@ const injectCSP = function(fctxt, pageStore, responseHeaders) {
     });
 
     return true;
-};
+}
 
 /******************************************************************************/
 
-const injectPP = function(fctxt, pageStore, responseHeaders) {
+function injectPP(fctxt, pageStore, responseHeaders) {
     const permissions = [];
     const directives = staticNetFilteringEngine.matchAndFetchModifiers(fctxt, 'permissions');
     if ( directives !== undefined ) {
@@ -1107,7 +1165,7 @@ const injectPP = function(fctxt, pageStore, responseHeaders) {
     });
 
     return true;
-};
+}
 
 /******************************************************************************/
 
@@ -1118,18 +1176,15 @@ const injectPP = function(fctxt, pageStore, responseHeaders) {
 //   cache. This works only when the webext API supports the `fromCache`
 //   property (Firefox).
 
-const foilLargeMediaElement = function(details, fctxt, pageStore) {
+function foilLargeMediaElement(details, fctxt, pageStore) {
     if ( details.fromCache === true ) { return; }
 
-    let size = 0;
-    if ( µb.userSettings.largeMediaSize !== 0 ) {
-        const headers = details.responseHeaders;
-        const i = headerIndexFromName('content-length', headers);
-        if ( i === -1 ) { return; }
-        size = parseInt(headers[i].value, 10) || 0;
-    }
+    onDemandHeaders.setHeaders(details.responseHeaders);
 
-    const result = pageStore.filterLargeMediaElement(fctxt, size);
+    const result = pageStore.filterLargeMediaElement(fctxt, onDemandHeaders);
+
+    onDemandHeaders.reset();
+
     if ( result === 0 ) { return; }
 
     if ( logger.enabled ) {
@@ -1137,18 +1192,17 @@ const foilLargeMediaElement = function(details, fctxt, pageStore) {
     }
 
     return { cancel: true };
-};
+}
+
+foilLargeMediaElement.TYPE_BITS = fc.IMAGE | fc.MEDIA | fc.XMLHTTPREQUEST;
 
 /******************************************************************************/
 
 // Caller must ensure headerName is normalized to lower case.
 
 const headerIndexFromName = function(headerName, headers) {
-    let i = headers.length;
-    while ( i-- ) {
-        if ( headers[i].name.toLowerCase() === headerName ) {
-            return i;
-        }
+    for ( let i = 0, n = headers.length; i < n; i++ ) {
+        if ( headers[i].name.toLowerCase() === headerName ) { return i; }
     }
     return -1;
 };
@@ -1156,6 +1210,24 @@ const headerIndexFromName = function(headerName, headers) {
 const headerValueFromName = function(headerName, headers) {
     const i = headerIndexFromName(headerName, headers);
     return i !== -1 ? headers[i].value : '';
+};
+
+const onDemandHeaders = {
+    headers: [],
+    get contentLength() {
+        const contentLength = headerValueFromName('content-length', this.headers);
+        if ( contentLength === '' ) { return Number.NaN; }
+        return parseInt(contentLength, 10) || 0;
+    },
+    get contentType() {
+        return headerValueFromName('content-type', this.headers);
+    },
+    setHeaders(headers) {
+        this.headers = headers;
+    },
+    reset() {
+        this.headers = [];
+    }
 };
 
 /******************************************************************************/
@@ -1205,6 +1277,65 @@ const strictBlockBypasser = {
 
 /******************************************************************************/
 
+function onResponseStarted(details) {
+    if ( details.tabId === -1 ) { return; }
+    const pageStore = µb.pageStoreFromTabId(details.tabId);
+    if ( pageStore === null ) { return; }
+    if ( pageStore.getNetFilteringSwitch() === false ) { return; }
+    // To enforce strict-blocking with ipaddress option
+    if ( isGecko === false && details.type === 'main_frame' ) {
+        const fctxt = µb.filteringContext.fromWebrequestDetails(details);
+        const r = onBeforeRootFrameRequest(fctxt);
+        if ( r?.cancel ) { return; }
+    }
+    details.ancestors = pageStore.getFrameAncestorDetails(details.frameId);
+    scriptletFilteringEngine.injectNow(details);
+}
+
+onResponseStarted.start = function() {
+    browser.webRequest.onResponseStarted.addListener(onResponseStarted, {
+        types: [ 'main_frame', 'sub_frame' ],
+        urls: [ 'http://*/*', 'https://*/*' ]
+    });
+};
+
+/******************************************************************************/
+
+const requestHeadersManager = {
+    requests: new Map(),
+    start() {
+        const extraInfoSpec = [ 'requestHeaders' ];
+        if ( isGecko !== true ) {
+            extraInfoSpec.push('extraHeaders');
+        }
+        browser.webRequest.onSendHeaders.addListener(details => {
+            this.requests.set(details.requestId, details.requestHeaders);
+        }, {
+            urls: [ 'http://*/*', 'https://*/*' ]
+        }, extraInfoSpec);
+        browser.webRequest.onBeforeRedirect.addListener(details => {
+            this.requests.delete(details.requestId);
+        }, {
+            urls: [ 'http://*/*', 'https://*/*' ]
+        });
+        browser.webRequest.onCompleted.addListener(details => {
+            this.requests.delete(details.requestId);
+        }, {
+            urls: [ 'http://*/*', 'https://*/*' ]
+        });
+        browser.webRequest.onErrorOccurred.addListener(details => {
+            this.requests.delete(details.requestId);
+        }, {
+            urls: [ 'http://*/*', 'https://*/*' ]
+        });
+    },
+    lookup(details) {
+        return this.requests.get(details.requestId) || [];
+    }
+};
+
+/******************************************************************************/
+
 // https://github.com/uBlockOrigin/uBlock-issues/issues/2350
 //   Added scriptlet injection attempt at onResponseStarted time as per
 //   https://github.com/AdguardTeam/AdguardBrowserExtension/issues/1029 and
@@ -1221,26 +1352,11 @@ const webRequest = {
 
         return ( ) => {
             vAPI.net.setSuspendableListener(onBeforeRequest);
-            vAPI.net.addListener(
-                'onHeadersReceived',
-                onHeadersReceived,
-                { urls: [ 'http://*/*', 'https://*/*' ] },
-                [ 'blocking', 'responseHeaders' ]
-            );
-            vAPI.net.addListener(
-                'onResponseStarted',
-                details => {
-                    if ( details.tabId === -1 ) { return; }
-                    const pageStore = µb.pageStoreFromTabId(details.tabId);
-                    if ( pageStore === null ) { return; }
-                    if ( pageStore.getNetFilteringSwitch() === false ) { return; }
-                    scriptletFilteringEngine.injectNow(details);
-                },
-                {
-                    types: [ 'main_frame', 'sub_frame' ],
-                    urls: [ 'http://*/*', 'https://*/*' ]
-                }
-            );
+            vAPI.net.addListener('onHeadersReceived', onHeadersReceived, {
+                urls: [ 'http://*/*', 'https://*/*' ]
+            }, [ 'blocking', 'responseHeaders' ]);
+            onResponseStarted.start();
+            requestHeadersManager.start();
             vAPI.defer.once({ sec: µb.hiddenSettings.toolbarWarningTimeout }).then(( ) => {
                 if ( vAPI.net.hasUnprocessedRequest() === false ) { return; }
                 vAPI.net.removeUnprocessedRequest();
